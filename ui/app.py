@@ -1,11 +1,27 @@
-﻿import time
+import os
+import time
 import re
 
 import pandas as pd
 import requests
 import streamlit as st
 
-API          = "http://127.0.0.1:8000"
+# ---------------------------------------------------------------------------
+# Backend URL
+# ---------------------------------------------------------------------------
+def _get_api_url() -> str:
+    try:
+        url = st.secrets.get("BACKEND_URL", "")
+        if url:
+            return url.rstrip("/")
+    except Exception:
+        pass
+    url = os.getenv("BACKEND_URL", "")
+    if url:
+        return url.rstrip("/")
+    return "http://127.0.0.1:8000"
+
+API          = _get_api_url()
 POLL_SECONDS = 2
 
 st.set_page_config(page_title="Global B2B Lead Discovery", layout="wide")
@@ -39,12 +55,9 @@ for k, v in _DEFAULTS.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-
 # ---------------------------------------------------------------------------
 # Table helpers
 # ---------------------------------------------------------------------------
-
-# Columns shown in every table — ordered by usefulness
 DISPLAY_COLS = [
     "company", "importance", "final_score",
     "compliance_gaps",
@@ -64,10 +77,7 @@ def _bool_icon(val) -> str:
 
 
 def _prep_df(df_in: pd.DataFrame) -> pd.DataFrame:
-    """Clean up a leads dataframe for display."""
     df = df_in[[c for c in DISPLAY_COLS if c in df_in.columns]].copy()
-
-    # Flatten list columns to readable strings
     if "compliance_gaps" in df.columns:
         df["compliance_gaps"] = df["compliance_gaps"].apply(
             lambda g: ", ".join(GAP_LABELS.get(x, x) for x in g)
@@ -77,65 +87,45 @@ def _prep_df(df_in: pd.DataFrame) -> pd.DataFrame:
         df["products"] = df["products"].apply(
             lambda p: ", ".join(str(x) for x in p) if isinstance(p, list) else str(p or "")
         )
-
-    # Boolean icons
     for col in ["bis_certified", "gst_registered", "iec_found", "mca_active"]:
         if col in df.columns:
             df[col] = df[col].apply(_bool_icon)
-
-    # Round floats
     for col in ["final_score", "semantic_score", "keyword_score",
                 "domain_authority", "contact_presence"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").round(3)
-
-    # Sort best first
     if "final_score" in df.columns:
         df = df.sort_values("final_score", ascending=False)
-
     return df
 
 
 def _row_style(row):
-    """
-    High-contrast row colours that work in both light AND dark Streamlit themes.
-    Priority order: compliance gap > high > medium > low
-    """
     imp     = str(row.get("importance", "")).lower()
     gaps    = str(row.get("compliance_gaps", ""))
     has_gap = bool(gaps and gaps not in ("", "nan", "None", "[]"))
-
     if has_gap:
-        # Dark red background, light red text
         bg, color = "#4a0d0d", "#ffb3b3"
     elif imp == "high":
-        # Dark green background, light green text
         bg, color = "#0d3320", "#6dffb0"
     elif imp == "medium":
-        # Dark amber background, light yellow text
         bg, color = "#3d2200", "#ffd980"
     else:
-        # Neutral dark background, muted text
         bg, color = "#1a1f2e", "#a0aec0"
-
     return [f"background-color: {bg}; color: {color}"] * len(row)
 
 
 def _show_table(df_in: pd.DataFrame, key_suffix: str = "") -> None:
-    """Prepare, style, and display a leads dataframe."""
     if df_in.empty:
         st.info("No leads in this category yet.")
         return
-
     df = _prep_df(df_in)
-
     styled = (
         df.style
         .apply(_row_style, axis=1)
         .set_properties(**{
-            "font-size":    "13px",
-            "font-family":  "monospace",
-            "border-color": "#2d3748",
+            "font-size":   "13px",
+            "font-family": "monospace",
+            "border-color":"#2d3748",
         })
         .set_table_styles([
             {"selector": "th", "props": [
@@ -149,26 +139,23 @@ def _show_table(df_in: pd.DataFrame, key_suffix: str = "") -> None:
                 ("border-bottom",    "2px solid #334155"),
             ]},
             {"selector": "td", "props": [
-                ("padding",          "7px 12px"),
-                ("border-bottom",    "1px solid #1e293b"),
-                ("max-width",        "300px"),
-                ("overflow",         "hidden"),
-                ("text-overflow",    "ellipsis"),
-                ("white-space",      "nowrap"),
+                ("padding",       "7px 12px"),
+                ("border-bottom", "1px solid #1e293b"),
+                ("max-width",     "300px"),
+                ("overflow",      "hidden"),
+                ("text-overflow", "ellipsis"),
+                ("white-space",   "nowrap"),
             ]},
             {"selector": "tr:hover td", "props": [
                 ("filter", "brightness(1.25)"),
             ]},
         ])
     )
-
     st.dataframe(
         styled,
         use_container_width=True,
         height=min(60 + len(df) * 38, 700),
     )
-
-    # CSV download
     csv_df = df_in[[c for c in DISPLAY_COLS if c in df_in.columns]].copy()
     for col in ["compliance_gaps", "products"]:
         if col in csv_df.columns:
@@ -192,10 +179,9 @@ def _tab_metrics(df_in: pd.DataFrame) -> None:
                  lambda g: isinstance(g, list) and len(g) > 0).sum()) \
              if "compliance_gaps" in df_in.columns else 0
     m1, m2, m3 = st.columns(3)
-    m1.metric("Total",          len(df_in))
-    m2.metric("🟢 High",        high_n)
-    m3.metric("🔴 With Gaps",   gap_n)
-
+    m1.metric("Total",        len(df_in))
+    m2.metric("🟢 High",      high_n)
+    m3.metric("🔴 With Gaps", gap_n)
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -228,8 +214,8 @@ def _start_background_search(search_query, continue_search=False, reset_results=
             st.session_state.mlt_seed_company      = ""
         st.success("Background search started")
         return True
-    except Exception:
-        st.error("Backend not running")
+    except Exception as e:
+        st.error(f"Cannot reach backend at {API} — {e}")
         return False
 
 
@@ -258,25 +244,57 @@ def _build_more_like_query(seed_row):
     q = " ".join(p for p in [searched_query, product_text] if p).strip()
     return q or company
 
-
 # ---------------------------------------------------------------------------
 # Page header
 # ---------------------------------------------------------------------------
 st.title("🌐 Global B2B Lead Discovery Engine")
 st.caption("Background search · Live results · Compliance gap detection")
 
-# LLM provider status badge
-try:
-    prov = requests.get(f"{API}/llm/provider", timeout=5).json()
-    pname  = prov.get("provider", "none").upper()
-    pmodel = prov.get("model", "—")
-    pstat  = prov.get("status", "")
-    if pstat == "active":
-        st.success(f"🤖 LLM: **{pname}** — `{pmodel}`", icon=None)
-    else:
-        st.warning("⚠️ No LLM provider configured — set DEEPSEEK_API_KEY, GROK_API_KEY, or OPENROUTER_API_KEY in .env")
-except Exception:
-    pass
+# Backend connection status — shows exact URL being used
+with st.expander("🔌 Backend Connection", expanded=False):
+    st.code(f"Backend URL: {API}", language=None)
+    try:
+        ping = requests.get(f"{API}/", timeout=8)
+        if ping.status_code == 200:
+            st.success(f"✅ Connected — {ping.json().get('service','')}")
+            try:
+                prov = requests.get(f"{API}/llm/provider", timeout=5).json()
+                pname  = prov.get("provider","none").upper()
+                pmodel = prov.get("model","—")
+                if prov.get("status") == "active":
+                    st.info(f"🤖 LLM: **{pname}** — `{pmodel}`")
+                else:
+                    st.warning("⚠️ No LLM API key set on backend")
+            except Exception:
+                pass
+        else:
+            st.error(f"❌ Backend returned HTTP {ping.status_code}")
+    except Exception as e:
+        st.error(f"❌ Cannot reach backend: {e}")
+        st.markdown(f"""
+        **Troubleshooting:**
+        - Backend URL being used: `{API}`
+        - If this shows `127.0.0.1` you haven't set `BACKEND_URL` in Streamlit secrets
+        - Go to Streamlit Cloud → your app → ⋮ → Settings → Secrets and add:
+        ```
+        BACKEND_URL = "https://your-app.onrender.com"
+        ```
+        """)
+
+# ---------------------------------------------------------------------------
+# Colour legend
+# ---------------------------------------------------------------------------
+st.markdown(
+    """
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;font-size:13px;">
+      <span style="background:#0d3320;color:#6dffb0;padding:3px 12px;border-radius:4px;">🟢 High importance</span>
+      <span style="background:#3d2200;color:#ffd980;padding:3px 12px;border-radius:4px;">🟡 Medium importance</span>
+      <span style="background:#4a0d0d;color:#ffb3b3;padding:3px 12px;border-radius:4px;">🔴 Has compliance gap</span>
+      <span style="background:#1a1f2e;color:#a0aec0;padding:3px 12px;border-radius:4px;">⚪ Low / unchecked</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 # ---------------------------------------------------------------------------
 # Query input
@@ -305,7 +323,6 @@ with col_a:
 with col_b:
     trusted_only = st.checkbox("Trusted domains only", value=False)
 
-# Action buttons
 col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("🔍 Start Search", use_container_width=True):
@@ -324,8 +341,8 @@ with col3:
                 st.session_state[k] = v
             st.warning("All leads cleared")
             st.rerun()
-        except Exception:
-            st.error("Backend not running")
+        except Exception as e:
+            st.error(f"Cannot reach backend: {e}")
 
 # Compliance enrichment
 with st.expander("🔬 Run Compliance Checks on Saved Leads", expanded=False):
@@ -343,25 +360,10 @@ with st.expander("🔬 Run Compliance Checks on Saved Leads", expanded=False):
                 st.success(f"Done — {r.json().get('checked', 0)} leads checked. Refresh to see gaps.")
             else:
                 st.error("Compliance check failed")
-        except Exception:
-            st.error("Backend not reachable")
+        except Exception as e:
+            st.error(f"Cannot reach backend: {e}")
 
 st.divider()
-
-# ---------------------------------------------------------------------------
-# Colour legend
-# ---------------------------------------------------------------------------
-st.markdown(
-    """
-    <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:8px; font-size:13px;">
-      <span style="background:#0d3320; color:#6dffb0; padding:3px 12px; border-radius:4px;">🟢 High importance</span>
-      <span style="background:#3d2200; color:#ffd980; padding:3px 12px; border-radius:4px;">🟡 Medium importance</span>
-      <span style="background:#4a0d0d; color:#ffb3b3; padding:3px 12px; border-radius:4px;">🔴 Has compliance gap</span>
-      <span style="background:#1a1f2e; color:#a0aec0; padding:3px 12px; border-radius:4px;">⚪ Low / unchecked</span>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
 
 # ---------------------------------------------------------------------------
 # Live background job
@@ -375,8 +377,8 @@ if st.session_state.active_job_id:
             f"{API}/search/status/{st.session_state.active_job_id}", timeout=20)
         if sr.status_code == 200:
             status = sr.json()
-    except Exception:
-        st.error("Backend not reachable")
+    except Exception as e:
+        st.error(f"Backend not reachable: {e}")
 
     if status:
         try:
@@ -394,8 +396,8 @@ if st.session_state.active_job_id:
                 ]
                 st.session_state.live_cursor = int(
                     payload.get("next_since", st.session_state.live_cursor))
-        except Exception:
-            st.error("Backend not reachable for results")
+        except Exception as e:
+            st.error(f"Backend not reachable: {e}")
 
         company_live = [x for x in st.session_state.live_results
                         if x.get("source") != "linkedin_semantic"]
@@ -422,7 +424,6 @@ if st.session_state.active_job_id:
             live_df = pd.DataFrame(company_live)
             _show_table(live_df, key_suffix="live")
 
-            # Find similar section
             st.markdown("---")
             st.markdown("#### 🔁 Find Similar Leads")
             selectable = [r for r in company_live if r.get("result_index") is not None]
@@ -460,8 +461,8 @@ if st.session_state.active_job_id:
                                 st.session_state.mlt_seed_company      = selected_seed.get("company","")
                             else:
                                 st.error("Could not find similar leads")
-                        except Exception:
-                            st.error("Backend not reachable")
+                        except Exception as e:
+                            st.error(f"Backend not reachable: {e}")
                 with b2:
                     if st.button("New Search Like This Lead", key="mlt_new"):
                         gq = _build_more_like_query(selected_seed)
@@ -518,11 +519,11 @@ try:
         lead_params["country_filter"] = country_filter.strip().lower()
     res  = requests.get(f"{API}/leads", params=lead_params, timeout=20)
     data = res.json()
-except Exception:
-    st.error("Backend not reachable. Start FastAPI first.")
+except Exception as e:
+    st.error(f"Backend not reachable: {e}")
+    st.markdown(f"**URL being called:** `{API}/leads`")
     st.stop()
 
-# Gap summary metrics
 try:
     gp = {}
     if country_filter.strip():
