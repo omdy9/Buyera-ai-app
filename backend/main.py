@@ -1,13 +1,16 @@
-﻿"""
-backend/main.py  –  Fixed version
-Changes vs original:
-  1. Broken /discover endpoint removed (referenced non-existent smart_google_search import)
-  2. All fields produced by scraper_google.py now correctly mapped (summary → ai_summary)
-  3. country_match field populated properly
-  4. _run_discovery correctly passes search_job_id to linkedin docs
-  5. Logging added throughout
-  6. /leads endpoint default limit raised; sort always by final_score when available
-  7. Minor: SEARCH_JOBS memory leak guard (cap at 200 jobs)
+"""
+backend/main.py  –  v2 (enriched company profile edition)
+==========================================================
+
+New fields stored per lead:
+  city, country_detected, linkedin_url, incorporation_date,
+  company_size, channel_type, contact_person, contact_email,
+  active_website, industry_detected, product_type, mca_company_type
+
+New API endpoints:
+  GET /leads/by-channel?channel=Manufacturer
+  GET /leads/by-industry?industry=Electronics
+  GET /leads/profile/{lead_id}   — full single-lead profile
 """
 
 from datetime import datetime
@@ -30,12 +33,12 @@ else:
 app = FastAPI(title="Global B2B Lead Discovery API")
 logger = logging.getLogger("uvicorn.error")
 
-DEFAULT_BATCH_RESULTS = 10
+DEFAULT_BATCH_RESULTS     = 10
 MAX_SEARCH_PAGES_PER_REQUEST = 100
-MAX_JOBS_IN_MEMORY = 200          # evict oldest jobs when cap is exceeded
+MAX_JOBS_IN_MEMORY        = 200
 
 SEARCH_JOBS: dict = {}
-SEARCH_JOBS_LOCK = threading.Lock()
+SEARCH_JOBS_LOCK  = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -49,10 +52,13 @@ def ensure_indexes():
         leads_collection.create_index([("website", 1)])
         leads_collection.create_index([("search_job_id", 1), ("result_index", 1)])
         leads_collection.create_index([("country_filter", 1), ("final_score", -1)])
+        leads_collection.create_index([("channel_type", 1)])
+        leads_collection.create_index([("industry_detected", 1)])
+        leads_collection.create_index([("city", 1)])
         search_state_collection.create_index([("query", 1)], unique=True)
         logger.info("MongoDB indexes ensured.")
     except Exception as exc:
-        logger.warning("Index creation skipped on startup: %s", exc)
+        logger.warning("Index creation skipped: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -82,12 +88,10 @@ def _existing_domains_for_query(query: str, country_filter: str = "") -> set:
     }
     if country_filter:
         filters["country_filter"] = country_filter.strip().lower()
-
     for row in leads_collection.find(filters, {"_id": 0, "website": 1}):
         domain = _domain_from_url(row.get("website", ""))
         if domain:
             domains.add(domain)
-
     return domains
 
 
@@ -95,23 +99,19 @@ def _read_search_state(query: str) -> dict:
     state = search_state_collection.find_one({"query": query}, {"_id": 0})
     if not state:
         return {"next_start": 0, "has_more": True}
-    return {
-        "next_start": int(state.get("next_start", 0)),
-        "has_more": bool(state.get("has_more", True)),
-    }
+    return {"next_start": int(state.get("next_start", 0)),
+            "has_more":   bool(state.get("has_more", True))}
 
 
 def _write_search_state(query: str, next_start: int, has_more: bool) -> None:
     search_state_collection.update_one(
         {"query": query},
-        {
-            "$set": {
-                "query": query,
-                "next_start": int(next_start),
-                "has_more": bool(has_more),
-                "updated_at": datetime.utcnow(),
-            }
-        },
+        {"$set": {
+            "query":      query,
+            "next_start": int(next_start),
+            "has_more":   bool(has_more),
+            "updated_at": datetime.utcnow(),
+        }},
         upsert=True,
     )
 
@@ -136,7 +136,6 @@ def _append_job_result(job_id: str, lead_doc: dict) -> None:
 
 
 def _evict_old_jobs() -> None:
-    """Remove oldest completed/failed jobs when cap is reached."""
     with SEARCH_JOBS_LOCK:
         if len(SEARCH_JOBS) < MAX_JOBS_IN_MEMORY:
             return
@@ -154,6 +153,104 @@ def _evict_old_jobs() -> None:
 # Core discovery logic
 # ---------------------------------------------------------------------------
 
+def _build_lead_doc(c: dict, query: str, country_filter: str,
+                    search_job_id: str | None = None) -> dict:
+    """Convert a scored company dict into the full MongoDB lead document."""
+
+    country_match = 0
+    if country_filter:
+        combined = " ".join([
+            str(c.get("company", "")),
+            str(c.get("website", "")),
+            str(c.get("summary", "")),
+            str(c.get("snippet", "")),
+            str(c.get("country_detected", "")),
+        ]).lower()
+        country_match = 1 if country_filter in combined else 0
+
+    compliance      = c.get("compliance", {})
+    compliance_gaps = compliance.get("compliance_gaps", [])
+
+    # MCA may provide incorporation_date
+    mca = compliance.get("mca", {})
+    incorporation_date = (
+        c.get("incorporation_date", "") or
+        mca.get("incorporation_date", "")
+    )
+    company_type_mca = mca.get("company_type", "")
+
+    doc = {
+        # --- Identity ---
+        "company":            c.get("company", ""),
+        "website":            c.get("website", ""),
+        "active_website":     c.get("active_website", c.get("website", "")),
+
+        # --- Location ---
+        "city":               c.get("city", ""),
+        "country_detected":   c.get("country_detected", ""),
+        "country_filter":     country_filter,
+        "country_match":      country_match,
+
+        # --- Contact ---
+        "email":              c.get("email", ""),
+        "phone":              c.get("phone", ""),
+        "contact_person":     c.get("contact_person", ""),
+        "contact_email":      c.get("contact_email", c.get("email", "")),
+
+        # --- Social ---
+        "linkedin_url":       c.get("linkedin_url", ""),
+
+        # --- Company profile ---
+        "industry_detected":  c.get("industry_detected", ""),
+        "product_type":       c.get("product_type", ""),
+        "channel_type":       c.get("channel_type", ""),
+        "company_size":       c.get("company_size", ""),
+        "incorporation_date": incorporation_date,
+        "mca_company_type":   company_type_mca,
+
+        # --- AI / NLP ---
+        "ai_summary":         c.get("summary", ""),
+        "products":           c.get("products", []),
+        "llm_relevant":       c.get("llm_relevant"),
+
+        # --- Scoring ---
+        "semantic_score":     c.get("semantic_score", 0.0),
+        "keyword_score":      c.get("keyword_score", 0.0),
+        "domain_authority":   c.get("domain_authority", 0.0),
+        "contact_presence":   c.get("contact_presence", 0.0),
+        "final_score":        c.get("final_score", 0.0),
+        "importance":         c.get("importance", "low"),
+
+        # --- Compliance ---
+        "compliance_gaps":    compliance_gaps,
+        "compliance_score":   compliance.get("compliance_score", 1.0),
+        "bis_certified":      compliance.get("bis",  {}).get("certified",  None),
+        "gst_registered":     compliance.get("gst",  {}).get("registered", None),
+        "iec_found":          compliance.get("dgft", {}).get("iec_found",  None),
+        "mca_active":         compliance.get("mca",  {}).get("active",     None),
+        "bis_detail":         compliance.get("bis",  {}).get("detail",     ""),
+        "gst_detail":         compliance.get("gst",  {}).get("detail",     ""),
+        "dgft_detail":        compliance.get("dgft", {}).get("detail",     ""),
+        "mca_detail":         compliance.get("mca",  {}).get("detail",     ""),
+        "compliance_checked": any(
+            v.get("checked") for v in [
+                compliance.get("bis",  {}),
+                compliance.get("gst",  {}),
+                compliance.get("dgft", {}),
+                compliance.get("mca",  {}),
+            ]
+        ),
+
+        # --- Meta ---
+        "searched_query": query,
+        "source":         "google_semantic",
+        "created_at":     datetime.utcnow(),
+    }
+    if search_job_id:
+        doc["search_job_id"] = search_job_id
+    return doc
+
+
 def _run_discovery(
     query: str,
     continue_search: bool = False,
@@ -162,62 +259,50 @@ def _run_discovery(
     country_filter: str = "",
     trusted_only: bool = False,
 ) -> dict:
-    query = query.strip()
+    query          = query.strip()
     country_filter = (country_filter or "").strip().lower()
-    state_key = _state_key(query, country_filter=country_filter, trusted_only=trusted_only)
+    state_key      = _state_key(query, country_filter=country_filter, trusted_only=trusted_only)
 
     if not query:
         return {
             "saved": 0, "linkedin_saved": 0, "saved_total": 0,
             "has_more": False, "next_start": 0, "pages_scanned": 0,
-            "continue_search": continue_search,
-            "scan_all_remaining": scan_all_remaining,
-            "country_filter": country_filter,
-            "trusted_only": trusted_only,
         }
 
     if continue_search:
-        state = _read_search_state(state_key)
+        state      = _read_search_state(state_key)
         next_start = state["next_start"]
-        has_more = state["has_more"]
+        has_more   = state["has_more"]
     else:
         next_start = 0
-        has_more = True
+        has_more   = True
         _write_search_state(state_key, next_start=0, has_more=True)
 
     if continue_search and not has_more:
         return {
             "saved": 0, "linkedin_saved": 0, "saved_total": 0,
             "has_more": False, "next_start": next_start, "pages_scanned": 0,
-            "continue_search": True,
-            "scan_all_remaining": scan_all_remaining,
             "message": "No more pages left for this query.",
-            "country_filter": country_filter,
-            "trusted_only": trusted_only,
         }
 
-    known_domains = _existing_domains_for_query(query, country_filter=country_filter)
-    saved = 0
-    pages_scanned = 0
+    known_domains  = _existing_domains_for_query(query, country_filter=country_filter)
+    saved          = 0
+    pages_scanned  = 0
     linkedin_saved = 0
-    guard = 0
+    guard          = 0
 
     while has_more and (scan_all_remaining or saved < DEFAULT_BATCH_RESULTS):
-        want = DEFAULT_BATCH_RESULTS if scan_all_remaining else (DEFAULT_BATCH_RESULTS - saved)
-
+        want   = DEFAULT_BATCH_RESULTS if scan_all_remaining else (DEFAULT_BATCH_RESULTS - saved)
         result = google_search(
             query,
-            max_results=want,
-            start=next_start,
-            exclude_domains=known_domains,
-            max_pages=1,
-            country_filter=country_filter,
-            trusted_only=trusted_only,
+            max_results=want, start=next_start,
+            exclude_domains=known_domains, max_pages=1,
+            country_filter=country_filter, trusted_only=trusted_only,
         )
 
-        companies = result.get("companies", [])
-        next_start = int(result.get("next_start", next_start))
-        has_more = bool(result.get("has_more", False))
+        companies      = result.get("companies", [])
+        next_start     = int(result.get("next_start", next_start))
+        has_more       = bool(result.get("has_more", False))
         pages_scanned += int(result.get("pages_scanned", 0))
 
         effective_country = (result.get("effective_country", "") or country_filter).strip().lower()
@@ -226,66 +311,9 @@ def _run_discovery(
 
         lead_docs = []
         for c in companies:
-            # Detect country match
-            country_match = 0
-            if country_filter:
-                combined = " ".join([
-                    str(c.get("company", "")),
-                    str(c.get("website", "")),
-                    str(c.get("summary", "")),
-                    str(c.get("snippet", "")),
-                ]).lower()
-                country_match = 1 if country_filter in combined else 0
-
-            # Pull compliance data written by cert_checker during enrichment
-            compliance      = c.get("compliance", {})
-            compliance_gaps = compliance.get("compliance_gaps", [])
-
-            lead_doc = {
-                "company":           c.get("company", ""),
-                "website":           c.get("website", ""),
-                "email":             c.get("email", ""),
-                "phone":             c.get("phone", ""),
-                "ai_summary":        c.get("summary", ""),
-                "products":          c.get("products", []),
-                "llm_relevant":      c.get("llm_relevant"),
-                "semantic_score":    c.get("semantic_score", 0.0),
-                "keyword_score":     c.get("keyword_score", 0.0),
-                "domain_authority":  c.get("domain_authority", 0.0),
-                "contact_presence":  c.get("contact_presence", 0.0),
-                "final_score":       c.get("final_score", 0.0),
-                "importance":        c.get("importance", "low"),
-                "country_match":     country_match,
-                "country_filter":    country_filter,
-                "searched_query":    query,
-                "source":            "google_semantic",
-                "created_at":        datetime.utcnow(),
-                # --- compliance fields ---
-                "compliance_gaps":   compliance_gaps,
-                "compliance_score":  compliance.get("compliance_score", 1.0),
-                "bis_certified":     compliance.get("bis",  {}).get("certified",  None),
-                "gst_registered":    compliance.get("gst",  {}).get("registered", None),
-                "iec_found":         compliance.get("dgft", {}).get("iec_found",  None),
-                "mca_active":        compliance.get("mca",  {}).get("active",     None),
-                "bis_detail":        compliance.get("bis",  {}).get("detail",     ""),
-                "gst_detail":        compliance.get("gst",  {}).get("detail",     ""),
-                "dgft_detail":       compliance.get("dgft", {}).get("detail",     ""),
-                "mca_detail":        compliance.get("mca",  {}).get("detail",     ""),
-                "compliance_checked": any(
-                    v.get("checked") for v in [
-                        compliance.get("bis",  {}),
-                        compliance.get("gst",  {}),
-                        compliance.get("dgft", {}),
-                        compliance.get("mca",  {}),
-                    ]
-                ),
-            }
-            if search_job_id:
-                lead_doc["search_job_id"] = search_job_id
-
+            lead_doc = _build_lead_doc(c, query, country_filter, search_job_id)
             lead_docs.append(lead_doc)
             saved += 1
-
             domain = c.get("domain", "") or _domain_from_url(c.get("website", ""))
             if domain:
                 known_domains.add(domain)
@@ -301,7 +329,7 @@ def _run_discovery(
             has_more = False
             break
 
-    # LinkedIn – only on fresh (non-continue) searches
+    # LinkedIn (fresh searches only)
     if not continue_search:
         people = linkedin_discovery(query, country_filter=country_filter)
         linkedin_docs = []
@@ -317,7 +345,6 @@ def _run_discovery(
             }
             if search_job_id:
                 lead_doc["search_job_id"] = search_job_id
-
             linkedin_docs.append(lead_doc)
             linkedin_saved += 1
 
@@ -344,22 +371,15 @@ def _run_discovery(
 
 
 def _run_discovery_job(
-    job_id: str,
-    query: str,
-    continue_search: bool,
-    scan_all_remaining: bool,
-    country_filter: str,
-    trusted_only: bool,
+    job_id: str, query: str, continue_search: bool,
+    scan_all_remaining: bool, country_filter: str, trusted_only: bool,
 ) -> None:
     _upsert_job(job_id, status="running", started_at=datetime.utcnow())
     try:
         result = _run_discovery(
-            query=query,
-            continue_search=continue_search,
-            scan_all_remaining=scan_all_remaining,
-            search_job_id=job_id,
-            country_filter=country_filter,
-            trusted_only=trusted_only,
+            query=query, continue_search=continue_search,
+            scan_all_remaining=scan_all_remaining, search_job_id=job_id,
+            country_filter=country_filter, trusted_only=trusted_only,
         )
         _upsert_job(job_id, status="completed", finished_at=datetime.utcnow(), **result)
         logger.info("Job %s completed: saved=%s", job_id, result.get("saved_total"))
@@ -372,35 +392,28 @@ def _run_discovery_job(
 # API routes
 # ---------------------------------------------------------------------------
 
+@app.get("/")
+def home():
+    return {"status": "running", "service": "Global Lead Discovery"}
+
 
 @app.get("/llm/provider")
 def llm_provider_info():
-    """Returns which LLM provider is currently active."""
     try:
         from llm import get_active_provider
     except ImportError:
         from .llm import get_active_provider
     return get_active_provider()
 
-@app.get("/")
-def home():
-    return {"status": "running", "service": "Global Lead Discovery"}
-
 
 @app.post("/add_lead")
 def add_lead(text: str, service_focus: str = "marketing"):
     service, country, urgency, budget = extract_fields(text)
     match_score = score_match(text, service_focus)
-
     lead = {
-        "text":       text,
-        "service":    service,
-        "country":    country,
-        "urgency":    urgency,
-        "budget":     budget if budget else 0,
-        "score":      match_score,
-        "source":     "manual",
-        "created_at": datetime.utcnow(),
+        "text": text, "service": service, "country": country,
+        "urgency": urgency, "budget": budget if budget else 0,
+        "score": match_score, "source": "manual", "created_at": datetime.utcnow(),
     }
     leads_collection.insert_one(lead)
     return {"status": "added"}
@@ -419,32 +432,19 @@ def start_search(
     query = query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="query is required")
-
     country_filter = (country_filter or "").strip().lower()
     _evict_old_jobs()
 
     job_id = uuid.uuid4().hex
     job = {
-        "job_id":             job_id,
-        "query":              query,
-        "status":             "queued",
-        "continue_search":    continue_search,
-        "scan_all_remaining": scan_all_remaining,
-        "country_filter":     country_filter,
-        "trusted_only":       trusted_only,
-        "created_at":         datetime.utcnow(),
-        "started_at":         None,
-        "finished_at":        None,
-        "saved":              0,
-        "linkedin_saved":     0,
-        "saved_total":        0,
-        "has_more":           True,
-        "next_start":         0,
-        "pages_scanned":      0,
-        "error":              "",
-        "results":            [],
+        "job_id": job_id, "query": query, "status": "queued",
+        "continue_search": continue_search, "scan_all_remaining": scan_all_remaining,
+        "country_filter": country_filter, "trusted_only": trusted_only,
+        "created_at": datetime.utcnow(), "started_at": None, "finished_at": None,
+        "saved": 0, "linkedin_saved": 0, "saved_total": 0,
+        "has_more": True, "next_start": 0, "pages_scanned": 0,
+        "error": "", "results": [],
     }
-
     with SEARCH_JOBS_LOCK:
         SEARCH_JOBS[job_id] = job
 
@@ -454,15 +454,10 @@ def start_search(
         daemon=True,
     )
     worker.start()
-
     return {
-        "job_id":             job_id,
-        "status":             "started",
-        "query":              query,
-        "continue_search":    continue_search,
-        "scan_all_remaining": scan_all_remaining,
-        "country_filter":     country_filter,
-        "trusted_only":       trusted_only,
+        "job_id": job_id, "status": "started", "query": query,
+        "continue_search": continue_search, "scan_all_remaining": scan_all_remaining,
+        "country_filter": country_filter, "trusted_only": trusted_only,
     }
 
 
@@ -474,7 +469,6 @@ def search_status(job_id: str):
             raise HTTPException(status_code=404, detail="job not found")
         payload = {k: v for k, v in job.items() if k != "results"}
         payload["results_count"] = len(job["results"])
-
     payload["ask_continue"] = bool(
         payload.get("status") == "completed" and payload.get("has_more")
     )
@@ -487,15 +481,12 @@ def search_results(job_id: str, since: int = 0):
         job = SEARCH_JOBS.get(job_id)
         if not job:
             raise HTTPException(status_code=404, detail="job not found")
-        total = len(job["results"])
+        total     = len(job["results"])
         start_idx = max(0, min(int(since), total))
-        items = job["results"][start_idx:]
-
+        items     = job["results"][start_idx:]
     return {
-        "job_id":     job_id,
-        "results":    items,
-        "next_since": start_idx + len(items),
-        "total":      total,
+        "job_id": job_id, "results": items,
+        "next_since": start_idx + len(items), "total": total,
     }
 
 
@@ -515,8 +506,7 @@ def search_more_like_this(job_id: str, result_index: int, limit: int = 5):
         raise HTTPException(status_code=404, detail="seed result not found")
 
     seed_text = " ".join(filter(None, [
-        seed.get("company", ""),
-        seed.get("ai_summary", ""),
+        seed.get("company", ""), seed.get("ai_summary", ""),
         " ".join(seed.get("products", []) if isinstance(seed.get("products"), list) else []),
     ]))
 
@@ -526,25 +516,21 @@ def search_more_like_this(job_id: str, result_index: int, limit: int = 5):
             continue
         if int(row.get("result_index", -1)) == int(result_index):
             continue
-
         row_text = " ".join(filter(None, [
-            row.get("company", ""),
-            row.get("ai_summary", ""),
+            row.get("company", ""), row.get("ai_summary", ""),
             " ".join(row.get("products", []) if isinstance(row.get("products"), list) else []),
         ]))
-
-        sim = max(0.0, float(semantic_similarity(seed_text, row_text)))
+        sim     = max(0.0, float(semantic_similarity(seed_text, row_text)))
         blended = round((0.7 * sim) + (0.3 * float(row.get("final_score", 0) or 0)), 3)
-        item = dict(row)
-        item["similarity_score"] = round(sim, 3)
+        item    = dict(row)
+        item["similarity_score"]     = round(sim, 3)
         item["more_like_this_score"] = blended
         scored.append(item)
 
     scored.sort(key=lambda x: x.get("more_like_this_score", 0), reverse=True)
     return {
-        "job_id":            job_id,
-        "seed_result_index": int(result_index),
-        "results":           scored[: max(1, min(int(limit), 20))],
+        "job_id": job_id, "seed_result_index": int(result_index),
+        "results": scored[: max(1, min(int(limit), 20))],
     }
 
 
@@ -552,12 +538,8 @@ def search_more_like_this(job_id: str, result_index: int, limit: int = 5):
 
 @app.get("/leads")
 def get_leads(
-    query: str = "",
-    source: str = "",
-    country_filter: str = "",
-    min_score: float = 0.0,
-    skip: int = 0,
-    limit: int = 1000,
+    query: str = "", source: str = "", country_filter: str = "",
+    min_score: float = 0.0, skip: int = 0, limit: int = 1000,
 ):
     filters: dict = {}
     if query:
@@ -569,25 +551,99 @@ def get_leads(
     if min_score > 0:
         filters["final_score"] = {"$gte": float(min_score)}
 
-    safe_skip = max(0, int(skip))
-    safe_limit = max(1, min(int(limit), 2000))
-
     cursor = (
         leads_collection.find(filters, {"_id": 0})
         .sort("final_score", -1)
-        .skip(safe_skip)
-        .limit(safe_limit)
+        .skip(max(0, int(skip)))
+        .limit(max(1, min(int(limit), 2000)))
     )
     return list(cursor)
 
 
+@app.get("/leads/profile/{website_b64}")
+def get_lead_profile(website_b64: str):
+    """Get full profile for a single lead by base64-encoded website URL."""
+    import base64
+    try:
+        website = base64.urlsafe_b64decode(website_b64.encode()).decode()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid website encoding")
+    lead = leads_collection.find_one({"website": website}, {"_id": 0})
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return lead
+
+
+@app.get("/leads/by-channel")
+def leads_by_channel(
+    channel: str,
+    country_filter: str = "",
+    min_score: float = 0.0,
+    limit: int = 500,
+):
+    """Filter leads by channel type: Manufacturer / Importer / Trader / etc."""
+    valid = {"Manufacturer", "Importer", "Trader", "Wholesaler", "Distributor", "Retailer"}
+    channel = channel.strip().title()
+    if channel not in valid:
+        raise HTTPException(status_code=400,
+                            detail=f"channel must be one of {sorted(valid)}")
+    filters: dict = {"channel_type": channel, "source": {"$ne": "linkedin_semantic"}}
+    if country_filter:
+        filters["country_filter"] = country_filter.strip().lower()
+    if min_score > 0:
+        filters["final_score"] = {"$gte": float(min_score)}
+    cursor = (
+        leads_collection.find(filters, {"_id": 0})
+        .sort("final_score", -1)
+        .limit(max(1, min(int(limit), 2000)))
+    )
+    return list(cursor)
+
+
+@app.get("/leads/by-industry")
+def leads_by_industry(
+    industry: str,
+    country_filter: str = "",
+    min_score: float = 0.0,
+    limit: int = 500,
+):
+    """Filter leads by detected industry."""
+    filters: dict = {
+        "industry_detected": {"$regex": industry.strip(), "$options": "i"},
+        "source": {"$ne": "linkedin_semantic"},
+    }
+    if country_filter:
+        filters["country_filter"] = country_filter.strip().lower()
+    if min_score > 0:
+        filters["final_score"] = {"$gte": float(min_score)}
+    cursor = (
+        leads_collection.find(filters, {"_id": 0})
+        .sort("final_score", -1)
+        .limit(max(1, min(int(limit), 2000)))
+    )
+    return list(cursor)
+
+
+@app.get("/leads/channel-summary")
+def channel_summary(country_filter: str = ""):
+    """Returns counts by channel_type."""
+    filters: dict = {"source": {"$ne": "linkedin_semantic"}}
+    if country_filter:
+        filters["country_filter"] = country_filter.strip().lower()
+    pipeline = [
+        {"$match": filters},
+        {"$match": {"channel_type": {"$nin": ["", None]}}},
+        {"$group": {"_id": "$channel_type", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+    ]
+    rows = list(leads_collection.aggregate(pipeline))
+    return {r["_id"]: r["count"] for r in rows}
+
+
+# ---- Compliance endpoints ----
 
 @app.post("/leads/enrich-compliance")
 def enrich_compliance_background(limit: int = 50, country_filter: str = ""):
-    """
-    Background task: runs cert_checker on leads that haven't been compliance-checked yet.
-    Call this after a search completes — it won't slow down the search itself.
-    """
     try:
         from cert_checker import check_company_compliance
     except ImportError:
@@ -610,19 +666,22 @@ def enrich_compliance_background(limit: int = 50, country_filter: str = ""):
         compliance      = check_company_compliance(
             lead.get("company", ""), lead.get("website", ""))
         compliance_gaps = compliance.get("compliance_gaps", [])
+        mca             = compliance.get("mca", {})
         leads_collection.update_one(
             {"_id": lead["_id"]},
             {"$set": {
-                "compliance_gaps":   compliance_gaps,
-                "compliance_score":  compliance.get("compliance_score", 1.0),
-                "bis_certified":     compliance.get("bis",  {}).get("certified",  None),
-                "gst_registered":    compliance.get("gst",  {}).get("registered", None),
-                "iec_found":         compliance.get("dgft", {}).get("iec_found",  None),
-                "mca_active":        compliance.get("mca",  {}).get("active",     None),
-                "bis_detail":        compliance.get("bis",  {}).get("detail",     ""),
-                "gst_detail":        compliance.get("gst",  {}).get("detail",     ""),
-                "dgft_detail":       compliance.get("dgft", {}).get("detail",     ""),
-                "mca_detail":        compliance.get("mca",  {}).get("detail",     ""),
+                "compliance_gaps":    compliance_gaps,
+                "compliance_score":   compliance.get("compliance_score", 1.0),
+                "bis_certified":      compliance.get("bis",  {}).get("certified",  None),
+                "gst_registered":     compliance.get("gst",  {}).get("registered", None),
+                "iec_found":          compliance.get("dgft", {}).get("iec_found",  None),
+                "mca_active":         mca.get("active",     None),
+                "bis_detail":         compliance.get("bis",  {}).get("detail",     ""),
+                "gst_detail":         compliance.get("gst",  {}).get("detail",     ""),
+                "dgft_detail":        compliance.get("dgft", {}).get("detail",     ""),
+                "mca_detail":         mca.get("detail",     ""),
+                "mca_company_type":   mca.get("company_type", ""),
+                "incorporation_date": mca.get("incorporation_date", ""),
                 "compliance_checked": True,
             }}
         )
@@ -634,104 +693,69 @@ def enrich_compliance_background(limit: int = 50, country_filter: str = ""):
     return {"status": "done", "checked": len(leads)}
 
 
-# ---- Compliance gap filter ----
-
 @app.get("/leads/gaps")
 def get_leads_with_gaps(
-    gap: str = "",
-    country_filter: str = "",
-    min_score: float = 0.0,
-    importance: str = "",
-    skip: int = 0,
-    limit: int = 1000,
+    gap: str = "", country_filter: str = "",
+    min_score: float = 0.0, importance: str = "",
+    skip: int = 0, limit: int = 1000,
 ):
-    """
-    Return only leads that have compliance gaps.
-
-    gap (optional): filter to a specific gap code
-        no_bis | no_gst | no_iec | mca_not_found | mca_inactive
-    If gap is empty, returns all leads that have at least one gap.
-    """
     filters: dict = {
-        "source": {"$ne": "linkedin_semantic"},
+        "source":             {"$ne": "linkedin_semantic"},
         "compliance_checked": True,
         "compliance_gaps":    {"$exists": True, "$not": {"$size": 0}},
     }
-
     if gap:
         filters["compliance_gaps"] = gap.strip()
-
     if country_filter:
         filters["country_filter"] = country_filter.strip().lower()
-
     if min_score > 0:
         filters["final_score"] = {"$gte": float(min_score)}
-
     if importance:
         filters["importance"] = importance.strip().lower()
-
-    safe_skip  = max(0, int(skip))
-    safe_limit = max(1, min(int(limit), 2000))
 
     cursor = (
         leads_collection.find(filters, {"_id": 0})
         .sort([("compliance_score", 1), ("final_score", -1)])
-        .skip(safe_skip)
-        .limit(safe_limit)
+        .skip(max(0, int(skip)))
+        .limit(max(1, min(int(limit), 2000)))
     )
     return list(cursor)
 
 
 @app.get("/leads/gap-summary")
 def gap_summary(country_filter: str = ""):
-    """
-    Returns counts of each gap type across all checked leads.
-    Useful for the dashboard summary cards.
-    """
-    filters: dict = {
-        "source":             {"$ne": "linkedin_semantic"},
-        "compliance_checked": True,
-    }
+    filters: dict = {"source": {"$ne": "linkedin_semantic"}, "compliance_checked": True}
     if country_filter:
         filters["country_filter"] = country_filter.strip().lower()
-
     pipeline = [
         {"$match": filters},
         {"$unwind": {"path": "$compliance_gaps", "preserveNullAndEmptyArrays": False}},
         {"$group": {"_id": "$compliance_gaps", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
     ]
-
     rows = list(leads_collection.aggregate(pipeline))
     return {r["_id"]: r["count"] for r in rows}
 
 
 @app.post("/leads/recheck/{lead_id}")
 def recheck_lead(lead_id: str):
-    """
-    Re-run compliance checks for a single lead by its website field.
-    Useful when portal data changes or a check previously timed out.
-    """
     from bson import ObjectId
     try:
         oid = ObjectId(lead_id)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid lead_id")
-
     lead = leads_collection.find_one({"_id": oid})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-
     try:
         from cert_checker import check_company_compliance
     except ImportError:
         from .cert_checker import check_company_compliance
 
-    compliance = check_company_compliance(
-        lead.get("company", ""),
-        lead.get("website", ""),
-    )
+    compliance      = check_company_compliance(
+        lead.get("company", ""), lead.get("website", ""))
     compliance_gaps = compliance.get("compliance_gaps", [])
+    mca             = compliance.get("mca", {})
 
     update = {
         "compliance_gaps":    compliance_gaps,
@@ -739,14 +763,15 @@ def recheck_lead(lead_id: str):
         "bis_certified":      compliance.get("bis",  {}).get("certified",  None),
         "gst_registered":     compliance.get("gst",  {}).get("registered", None),
         "iec_found":          compliance.get("dgft", {}).get("iec_found",  None),
-        "mca_active":         compliance.get("mca",  {}).get("active",     None),
+        "mca_active":         mca.get("active",     None),
         "bis_detail":         compliance.get("bis",  {}).get("detail",     ""),
         "gst_detail":         compliance.get("gst",  {}).get("detail",     ""),
         "dgft_detail":        compliance.get("dgft", {}).get("detail",     ""),
-        "mca_detail":         compliance.get("mca",  {}).get("detail",     ""),
+        "mca_detail":         mca.get("detail",     ""),
+        "mca_company_type":   mca.get("company_type", ""),
+        "incorporation_date": mca.get("incorporation_date", ""),
         "compliance_checked": True,
     }
-
     leads_collection.update_one({"_id": oid}, {"$set": update})
     return {"status": "rechecked", "compliance_gaps": compliance_gaps}
 
@@ -757,31 +782,24 @@ def recheck_lead(lead_id: str):
 def seed():
     samples = [
         {
-            "company":       "Zenith Imports LLC",
-            "email":         "info@zenithimports.ae",
-            "phone":         "+971-4-555111",
-            "final_score":   0.75,
-            "importance":    "high",
-            "searched_query": "importers in dubai",
-            "source":        "seed",
-            "created_at":    datetime.utcnow(),
+            "company": "Zenith Imports LLC", "email": "info@zenithimports.ae",
+            "phone": "+971-4-555111", "final_score": 0.75, "importance": "high",
+            "city": "Dubai", "country_detected": "UAE",
+            "channel_type": "Importer", "company_size": "50-200",
+            "industry_detected": "Electronics", "product_type": "LED Lighting",
+            "incorporation_date": "2015", "linkedin_url": "",
+            "searched_query": "importers in dubai", "source": "seed",
+            "created_at": datetime.utcnow(),
         },
         {
-            "company":       "Falcon Trading",
-            "email":         "sales@falcontrading.ae",
-            "phone":         "+971-50-888777",
-            "final_score":   0.65,
-            "importance":    "medium",
-            "searched_query": "importers in dubai",
-            "source":        "seed",
-            "created_at":    datetime.utcnow(),
-        },
-        {
-            "name":          "Ahmed Khan - Import Manager",
-            "profile":       "https://linkedin.com/in/demo",
-            "searched_query": "importers in dubai",
-            "source":        "seed",
-            "created_at":    datetime.utcnow(),
+            "company": "Falcon Trading", "email": "sales@falcontrading.ae",
+            "phone": "+971-50-888777", "final_score": 0.65, "importance": "medium",
+            "city": "Dubai", "country_detected": "UAE",
+            "channel_type": "Trader", "company_size": "10-50",
+            "industry_detected": "Textiles", "product_type": "Cotton Fabric",
+            "incorporation_date": "2018", "linkedin_url": "",
+            "searched_query": "importers in dubai", "source": "seed",
+            "created_at": datetime.utcnow(),
         },
     ]
     leads_collection.insert_many(samples)
@@ -795,3 +813,4 @@ def clear():
     with SEARCH_JOBS_LOCK:
         SEARCH_JOBS.clear()
     return {"status": "cleared"}
+  
