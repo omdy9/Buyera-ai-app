@@ -1,27 +1,18 @@
 """
-llm.py  –  Multi-provider LLM client
-======================================
+llm.py  –  Multi-provider LLM client  (v2 — enriched company profile)
+=======================================================================
 Supports three providers selectable via LLM_PROVIDER env var:
 
-    LLM_PROVIDER=deepseek    (default — best JSON extraction, cheapest)
+    LLM_PROVIDER=deepseek    (default)
     LLM_PROVIDER=grok
     LLM_PROVIDER=openrouter
 
-Set the matching API key in .env:
-    DEEPSEEK_API_KEY=...
-    GROK_API_KEY=...
-    OPENROUTER_API_KEY=...
-
-All three use the OpenAI-compatible /v1/chat/completions format.
-
-Functions
+New in v2
 ---------
-analyze_company(query, content)  -> dict
-    Extracts company summary, products, industry, relevance, score.
-
-analyze_leads_batch(query, leads) -> list[dict]
-    Runs analysis on a list of lead dicts and returns enriched results.
-    Useful for post-search bulk enrichment.
+analyze_company() now extracts 12 additional fields:
+    city, country, linkedin_url, incorporation_date, company_size,
+    channel_type, contact_person, contact_email, industry, product_type,
+    website_active, products
 """
 
 import os
@@ -59,33 +50,38 @@ _PROVIDERS = {
     },
 }
 
-# Fallback order if primary provider key is missing
 _FALLBACK_ORDER = ["deepseek", "grok", "openrouter"]
 
 
 def _get_provider() -> dict | None:
-    """Return active provider config, falling back if key is missing."""
-    # Try the configured provider first
     cfg = _PROVIDERS.get(PROVIDER)
     if cfg and os.getenv(cfg["key_env"], "").strip():
         return cfg
-
-    # Try fallbacks
     for name in _FALLBACK_ORDER:
         cfg = _PROVIDERS[name]
         if os.getenv(cfg["key_env"], "").strip():
             logger.info("LLM: falling back to provider '%s'", name)
             return cfg
-
-    return None  # No key available at all
+    return None
 
 
 _FALLBACK_RESULT = {
-    "summary":  "",
-    "products": [],
-    "industry": "",
-    "relevant": False,
-    "score":    0,
+    "summary":            "",
+    "products":           [],
+    "industry":           "",
+    "relevant":           False,
+    "score":              0,
+    # New enriched fields
+    "city":               "",
+    "country":            "",
+    "linkedin_url":       "",
+    "incorporation_date": "",
+    "company_size":       "",
+    "channel_type":       "",
+    "contact_person":     "",
+    "contact_email":      "",
+    "website_active":     "",
+    "product_type":       "",
 }
 
 
@@ -94,10 +90,7 @@ _FALLBACK_RESULT = {
 # ---------------------------------------------------------------------------
 
 def _extract_json(text: str) -> dict:
-    """Strip markdown fences and parse the first JSON object found."""
-    # Remove ```json ... ``` or ``` ... ```
     clean = re.sub(r"```(?:json)?", "", text).replace("```", "").strip()
-    # Find the first { ... } block
     match = re.search(r"\{.*\}", clean, re.DOTALL)
     if match:
         return json.loads(match.group())
@@ -105,17 +98,36 @@ def _extract_json(text: str) -> dict:
 
 
 def _normalise(result: dict) -> dict:
-    """Ensure all expected keys exist with correct types."""
     products = result.get("products") or []
     if not isinstance(products, list):
         products = [str(products)]
 
+    # Validate channel_type
+    valid_channels = {
+        "Manufacturer", "Importer", "Trader",
+        "Wholesaler", "Distributor", "Retailer", ""
+    }
+    channel = str(result.get("channel_type", "") or "").strip().title()
+    if channel not in valid_channels:
+        channel = ""
+
     return {
-        "summary":  str(result.get("summary",  "") or ""),
-        "products": [str(p) for p in products if p],
-        "industry": str(result.get("industry", "") or ""),
-        "relevant": bool(result.get("relevant", False)),
-        "score":    max(0, min(int(result.get("score", 0) or 0), 10)),
+        "summary":            str(result.get("summary",            "") or ""),
+        "products":           [str(p) for p in products if p],
+        "industry":           str(result.get("industry",           "") or ""),
+        "relevant":           bool(result.get("relevant",          False)),
+        "score":              max(0, min(int(result.get("score", 0) or 0), 10)),
+        # New fields
+        "city":               str(result.get("city",               "") or ""),
+        "country":            str(result.get("country",            "") or ""),
+        "linkedin_url":       str(result.get("linkedin_url",       "") or ""),
+        "incorporation_date": str(result.get("incorporation_date", "") or ""),
+        "company_size":       str(result.get("company_size",       "") or ""),
+        "channel_type":       channel,
+        "contact_person":     str(result.get("contact_person",     "") or ""),
+        "contact_email":      str(result.get("contact_email",      "") or ""),
+        "website_active":     str(result.get("website_active",     "") or ""),
+        "product_type":       str(result.get("product_type",       "") or ""),
     }
 
 
@@ -125,10 +137,6 @@ def _normalise(result: dict) -> dict:
 
 def _call_llm(messages: list, max_tokens: int = 512,
               temperature: float = 0.1, retries: int = 2) -> str:
-    """
-    Send messages to the active provider and return the text response.
-    Retries once on transient errors with a short backoff.
-    """
     cfg = _get_provider()
     if not cfg:
         raise RuntimeError("No LLM API key configured. Set DEEPSEEK_API_KEY, "
@@ -139,8 +147,6 @@ def _call_llm(messages: list, max_tokens: int = 512,
         "Authorization": f"Bearer {api_key}",
         "Content-Type":  "application/json",
     }
-
-    # OpenRouter needs a few extra headers
     if "openrouter" in cfg["url"]:
         headers["HTTP-Referer"] = "https://buyera.ai"
         headers["X-Title"]      = "Buyera AI Lead Discovery"
@@ -163,8 +169,7 @@ def _call_llm(messages: list, max_tokens: int = 512,
             return resp.json()["choices"][0]["message"]["content"]
         except (requests.RequestException, KeyError, IndexError) as exc:
             last_exc = exc
-            logger.warning("LLM attempt %d/%d failed (%s): %s",
-                           attempt + 1, retries, cfg["url"], exc)
+            logger.warning("LLM attempt %d/%d failed: %s", attempt + 1, retries, exc)
             if attempt < retries - 1:
                 time.sleep(1.5)
 
@@ -172,7 +177,7 @@ def _call_llm(messages: list, max_tokens: int = 512,
 
 
 # ---------------------------------------------------------------------------
-# Company analysis
+# ENHANCED: Company analysis prompt — extracts 16 fields
 # ---------------------------------------------------------------------------
 
 _COMPANY_PROMPT = """\
@@ -183,16 +188,26 @@ User Search Query: {query}
 Company Website Content:
 {content}
 
-Analyse this company and return ONLY a valid JSON object — no explanation, \
+Analyse this company carefully and return ONLY a valid JSON object — no explanation, \
 no markdown, no extra text.
 
-JSON schema:
+JSON schema (return ALL keys, use empty string "" or null for unknown values):
 {{
-  "summary":  "One sentence describing what this company does",
-  "products": ["product or service 1", "product or service 2"],
-  "industry": "Industry sector",
-  "relevant": true or false (is this company a potential client for the query?),
-  "score":    integer 1-10 (relevance score, 10 = perfect match)
+  "summary":            "One sentence describing what this company does",
+  "products":           ["product or service 1", "product or service 2"],
+  "product_type":       "Primary product category (e.g. LED Lighting, Steel Pipes)",
+  "industry":           "Industry sector (e.g. Electronics, Pharmaceuticals, Textiles)",
+  "channel_type":       "One of: Manufacturer / Importer / Trader / Wholesaler / Distributor / Retailer",
+  "company_size":       "Employee count or range (e.g. 50-200, 500+, 10-50)",
+  "city":               "City where company is headquartered",
+  "country":            "Country where company is headquartered",
+  "linkedin_url":       "LinkedIn company page URL if mentioned in content, else empty string",
+  "incorporation_date": "Year or date of incorporation/founding (e.g. 2005, 12/03/2010)",
+  "contact_person":     "Name of contact person if mentioned",
+  "contact_email":      "Contact email address if found in content",
+  "website_active":     "Company website URL",
+  "relevant":           true or false (is this company a potential client for the query?),
+  "score":              integer 1-10 (relevance score, 10 = perfect match)
 }}
 """
 
@@ -200,7 +215,7 @@ JSON schema:
 def analyze_company(query: str, content: str) -> dict:
     """
     Analyse a company's website content against the user's search query.
-    Returns a dict with keys: summary, products, industry, relevant, score.
+    Returns a dict with all enriched fields including the 12 new profile fields.
     """
     cfg = _get_provider()
     if not cfg:
@@ -217,7 +232,7 @@ def analyze_company(query: str, content: str) -> dict:
 
     try:
         text   = _call_llm([{"role": "user", "content": prompt}],
-                           max_tokens=400, temperature=0.1)
+                           max_tokens=600, temperature=0.1)
         result = _extract_json(text)
         return _normalise(result)
     except (json.JSONDecodeError, ValueError) as exc:
@@ -229,7 +244,7 @@ def analyze_company(query: str, content: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Batch lead analysis  (for post-search enrichment)
+# Batch lead analysis
 # ---------------------------------------------------------------------------
 
 _BATCH_PROMPT = """\
@@ -247,30 +262,24 @@ Return ONLY a valid JSON array. No explanation, no markdown.
 
 Schema per object:
 {{
-  "summary":  "One sentence",
-  "products": ["product1"],
-  "industry": "sector",
-  "relevant": true/false,
-  "score":    1-10
+  "summary":      "One sentence",
+  "products":     ["product1"],
+  "industry":     "sector",
+  "channel_type": "Manufacturer / Importer / Trader / Wholesaler / Distributor / Retailer",
+  "company_size": "employee range",
+  "city":         "headquarters city",
+  "country":      "headquarters country",
+  "relevant":     true/false,
+  "score":        1-10
 }}
 """
 
 
 def analyze_leads_batch(query: str, leads: list) -> list:
-    """
-    Run LLM analysis on a batch of lead dicts.
-
-    Each lead dict should have at least:
-        company, ai_summary or snippet, products (optional)
-
-    Returns a list of enriched dicts in the same order.
-    Gracefully falls back to the original lead if LLM fails.
-    """
     cfg = _get_provider()
     if not cfg or not leads:
         return leads
 
-    # Build a compact company list string
     company_lines = []
     for i, lead in enumerate(leads):
         name    = lead.get("company", f"Company {i+1}")
@@ -288,18 +297,15 @@ def analyze_leads_batch(query: str, leads: list) -> list:
     try:
         text = _call_llm(
             [{"role": "user", "content": prompt}],
-            max_tokens=min(150 * len(leads), 2000),
+            max_tokens=min(200 * len(leads), 2000),
             temperature=0.1,
         )
-
-        # Extract JSON array
         clean = re.sub(r"```(?:json)?", "", text).replace("```", "").strip()
         arr_match = re.search(r"\[.*\]", clean, re.DOTALL)
         if not arr_match:
             raise ValueError("No JSON array in response")
 
         results = json.loads(arr_match.group())
-
         enriched = []
         for i, lead in enumerate(leads):
             updated = dict(lead)
@@ -308,12 +314,15 @@ def analyze_leads_batch(query: str, leads: list) -> list:
                 if r["summary"]:
                     updated["ai_summary"] = r["summary"]
                 if r["products"]:
-                    updated["products"]   = r["products"]
-                updated["llm_industry"] = r["industry"]
-                updated["llm_relevant"] = r["relevant"]
-                updated["llm_score"]    = r["score"]
+                    updated["products"]      = r["products"]
+                updated["llm_industry"]  = r["industry"]
+                updated["llm_relevant"]  = r["relevant"]
+                updated["llm_score"]     = r["score"]
+                # Batch also fills new fields if present
+                for field in ["channel_type", "company_size", "city", "country"]:
+                    if r.get(field) and not updated.get(field):
+                        updated[field] = r[field]
             enriched.append(updated)
-
         return enriched
 
     except (json.JSONDecodeError, ValueError, RuntimeError) as exc:
@@ -322,11 +331,10 @@ def analyze_leads_batch(query: str, leads: list) -> list:
 
 
 # ---------------------------------------------------------------------------
-# Provider info  (useful for debugging)
+# Provider info
 # ---------------------------------------------------------------------------
 
 def get_active_provider() -> dict:
-    """Return info about which provider is currently active."""
     cfg = _get_provider()
     if not cfg:
         return {"provider": "none", "model": "none", "status": "no API key set"}
