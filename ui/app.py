@@ -42,6 +42,84 @@ CHANNEL_TYPES = [
     "Wholesaler", "Distributor", "Retailer",
 ]
 
+ALL_INDUSTRIES = [
+    "Electronics", "Pharmaceuticals", "Textiles", "Chemicals", "Machinery",
+    "Food & Beverage", "Automotive", "Construction", "IT & Software",
+    "Healthcare", "Logistics", "Agriculture", "Energy", "Retail",
+]
+
+# Country → States/Cities mapping
+COUNTRY_STATES = {
+    "India": [
+        "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+        "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
+        "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya",
+        "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim",
+        "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand",
+        "West Bengal", "Delhi", "Jammu & Kashmir", "Ladakh", "Chandigarh",
+        "Puducherry", "Lakshadweep", "Andaman & Nicobar",
+    ],
+    "UAE": [
+        "Dubai", "Abu Dhabi", "Sharjah", "Ajman", "Ras Al Khaimah",
+        "Fujairah", "Umm Al Quwain",
+    ],
+    "USA": [
+        "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado",
+        "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho",
+        "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana",
+        "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota",
+        "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada",
+        "New Hampshire", "New Jersey", "New Mexico", "New York",
+        "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon",
+        "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota",
+        "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington",
+        "West Virginia", "Wisconsin", "Wyoming",
+    ],
+    "UK": [
+        "England", "Scotland", "Wales", "Northern Ireland",
+        "London", "Manchester", "Birmingham", "Leeds", "Glasgow",
+        "Liverpool", "Bristol", "Sheffield", "Edinburgh",
+    ],
+    "Germany": [
+        "Baden-Württemberg", "Bavaria", "Berlin", "Brandenburg", "Bremen",
+        "Hamburg", "Hesse", "Lower Saxony", "Mecklenburg-Vorpommern",
+        "North Rhine-Westphalia", "Rhineland-Palatinate", "Saarland",
+        "Saxony", "Saxony-Anhalt", "Schleswig-Holstein", "Thuringia",
+    ],
+    "Canada": [
+        "Alberta", "British Columbia", "Manitoba", "New Brunswick",
+        "Newfoundland and Labrador", "Nova Scotia", "Ontario",
+        "Prince Edward Island", "Quebec", "Saskatchewan",
+        "Northwest Territories", "Nunavut", "Yukon",
+    ],
+    "Australia": [
+        "New South Wales", "Victoria", "Queensland", "South Australia",
+        "Western Australia", "Tasmania", "ACT", "Northern Territory",
+    ],
+    "Singapore": ["Central Region", "East Region", "North Region",
+                  "North-East Region", "West Region"],
+    "China": [
+        "Beijing", "Shanghai", "Guangdong", "Zhejiang", "Jiangsu",
+        "Shandong", "Sichuan", "Hubei", "Hunan", "Fujian",
+        "Anhui", "Henan", "Liaoning", "Chongqing", "Tianjin",
+    ],
+    "Italy": [
+        "Lombardy", "Lazio", "Campania", "Sicily", "Veneto",
+        "Emilia-Romagna", "Piedmont", "Apulia", "Tuscany", "Calabria",
+    ],
+    "France": [
+        "Île-de-France", "Auvergne-Rhône-Alpes", "Nouvelle-Aquitaine",
+        "Occitanie", "Hauts-de-France", "Grand Est", "Provence-Alpes-Côte d'Azur",
+        "Pays de la Loire", "Normandy", "Brittany",
+    ],
+    "Japan": [
+        "Tokyo", "Osaka", "Kanagawa", "Aichi", "Saitama", "Chiba",
+        "Hyogo", "Hokkaido", "Fukuoka", "Shizuoka",
+    ],
+}
+
+ALL_COUNTRIES = ["Any"] + sorted(COUNTRY_STATES.keys())
+
 # ---------------------------------------------------------------------------
 # Session state
 # ---------------------------------------------------------------------------
@@ -63,46 +141,20 @@ for k, v in _DEFAULTS.items():
 # ---------------------------------------------------------------------------
 # Display column definitions
 # ---------------------------------------------------------------------------
-
-# Core identity + new profile columns shown first
 DISPLAY_COLS = [
-    "company",
-    "city",
-    "country_detected",
-    "industry_detected",
-    "product_type",
-    "channel_type",
-    "company_size",
-    "incorporation_date",
-    "importance",
-    "final_score",
-    "compliance_gaps",
-    "bis_certified",
-    "gst_registered",
-    "iec_found",
-    "mca_active",
-    "contact_person",
-    "contact_email",
-    "email",
-    "phone",
-    "linkedin_url",
-    "active_website",
-    "website",
-    "ai_summary",
-    "products",
-    "mca_company_type",
-    "domain_authority",
-    "contact_presence",
-    "semantic_score",
-    "keyword_score",
-    "country_filter",
-    "searched_query",
+    "company", "city", "country_detected", "industry_detected", "product_type",
+    "channel_type", "company_size", "incorporation_date", "importance",
+    "final_score", "compliance_gaps", "bis_certified", "gst_registered",
+    "iec_found", "mca_active", "contact_person", "contact_email", "email",
+    "phone", "linkedin_url", "active_website", "website", "ai_summary",
+    "products", "mca_company_type", "domain_authority", "contact_presence",
+    "semantic_score", "keyword_score", "country_filter", "searched_query",
     "created_at",
 ]
 
 COLUMN_LABELS = {
     "company":            "Company Name",
-    "city":               "City",
+    "city":               "City / State",
     "country_detected":   "Country",
     "industry_detected":  "Industry",
     "product_type":       "Product Type",
@@ -135,7 +187,6 @@ COLUMN_LABELS = {
     "created_at":         "Found At",
 }
 
-
 # ---------------------------------------------------------------------------
 # Table helpers
 # ---------------------------------------------------------------------------
@@ -150,40 +201,35 @@ def _prep_df(df_in: pd.DataFrame) -> pd.DataFrame:
     df = df_in[[c for c in DISPLAY_COLS if c in df_in.columns]].copy()
     df.rename(columns={c: COLUMN_LABELS.get(c, c) for c in df.columns}, inplace=True)
 
-    label_gaps = COLUMN_LABELS.get("compliance_gaps", "Compliance Gaps")
+    label_gaps = COLUMN_LABELS["compliance_gaps"]
     if label_gaps in df.columns:
         df[label_gaps] = df[label_gaps].apply(
             lambda g: ", ".join(GAP_LABELS.get(x, x) for x in g)
             if isinstance(g, list) else ""
         )
-
-    label_products = COLUMN_LABELS.get("products", "Products")
+    label_products = COLUMN_LABELS["products"]
     if label_products in df.columns:
         df[label_products] = df[label_products].apply(
             lambda p: ", ".join(str(x) for x in p) if isinstance(p, list) else str(p or "")
         )
-
     for col_key in ["bis_certified", "gst_registered", "iec_found", "mca_active"]:
-        col_label = COLUMN_LABELS.get(col_key, col_key)
+        col_label = COLUMN_LABELS[col_key]
         if col_label in df.columns:
             df[col_label] = df[col_label].apply(_bool_icon)
-
     for col_key in ["final_score", "semantic_score", "keyword_score",
                     "domain_authority", "contact_presence"]:
-        col_label = COLUMN_LABELS.get(col_key, col_key)
+        col_label = COLUMN_LABELS[col_key]
         if col_label in df.columns:
             df[col_label] = pd.to_numeric(df[col_label], errors="coerce").round(3)
-
-    score_label = COLUMN_LABELS.get("final_score", "Score")
+    score_label = COLUMN_LABELS["final_score"]
     if score_label in df.columns:
         df = df.sort_values(score_label, ascending=False)
-
     return df
 
 
 def _row_style(row):
-    imp     = str(row.get("Importance", row.get("importance", ""))).lower()
-    gaps    = str(row.get("Compliance Gaps", row.get("compliance_gaps", "")))
+    imp     = str(row.get("Importance", "")).lower()
+    gaps    = str(row.get("Compliance Gaps", ""))
     has_gap = bool(gaps and gaps not in ("", "nan", "None", "[]"))
     if has_gap:
         bg, color = "#4a0d0d", "#ffb3b3"
@@ -198,59 +244,40 @@ def _row_style(row):
 
 def _show_table(df_in: pd.DataFrame, key_suffix: str = "") -> None:
     if df_in.empty:
-        st.info("No leads in this category yet.")
+        st.info("No leads match the current filters.")
         return
     df = _prep_df(df_in)
     styled = (
         df.style
         .apply(_row_style, axis=1)
-        .set_properties(**{
-            "font-size":   "13px",
-            "font-family": "monospace",
-            "border-color": "#2d3748",
-        })
+        .set_properties(**{"font-size": "13px", "font-family": "monospace",
+                           "border-color": "#2d3748"})
         .set_table_styles([
             {"selector": "th", "props": [
-                ("background-color", "#0f172a"),
-                ("color",            "#e2e8f0"),
-                ("font-size",        "12px"),
-                ("font-weight",      "700"),
-                ("text-transform",   "uppercase"),
-                ("letter-spacing",   "0.05em"),
-                ("padding",          "8px 12px"),
-                ("border-bottom",    "2px solid #334155"),
+                ("background-color", "#0f172a"), ("color", "#e2e8f0"),
+                ("font-size", "12px"), ("font-weight", "700"),
+                ("text-transform", "uppercase"), ("letter-spacing", "0.05em"),
+                ("padding", "8px 12px"), ("border-bottom", "2px solid #334155"),
             ]},
             {"selector": "td", "props": [
-                ("padding",       "7px 12px"),
-                ("border-bottom", "1px solid #1e293b"),
-                ("max-width",     "260px"),
-                ("overflow",      "hidden"),
-                ("text-overflow", "ellipsis"),
-                ("white-space",   "nowrap"),
+                ("padding", "7px 12px"), ("border-bottom", "1px solid #1e293b"),
+                ("max-width", "260px"), ("overflow", "hidden"),
+                ("text-overflow", "ellipsis"), ("white-space", "nowrap"),
             ]},
-            {"selector": "tr:hover td", "props": [
-                ("filter", "brightness(1.25)"),
-            ]},
+            {"selector": "tr:hover td", "props": [("filter", "brightness(1.25)")]},
         ])
     )
-    st.dataframe(
-        styled,
-        use_container_width=True,
-        height=min(60 + len(df) * 38, 700),
-    )
-
-    # CSV export uses original column names
+    st.dataframe(styled, use_container_width=True,
+                 height=min(60 + len(df) * 38, 700))
     csv_df = df_in[[c for c in DISPLAY_COLS if c in df_in.columns]].copy()
     for col in ["compliance_gaps", "products"]:
         if col in csv_df.columns:
             csv_df[col] = csv_df[col].apply(
                 lambda v: ", ".join(v) if isinstance(v, list) else str(v or ""))
     csv = csv_df.to_csv(index=False).encode("utf-8")
-    st.download_button(
-        "⬇️ Download CSV", csv,
-        f"leads_{key_suffix}.csv", "text/csv",
-        key=f"dl_{key_suffix}_{len(df_in)}",
-    )
+    st.download_button("⬇️ Download CSV", csv,
+                       f"leads_{key_suffix}.csv", "text/csv",
+                       key=f"dl_{key_suffix}_{len(df_in)}")
 
 
 def _tab_metrics(df_in: pd.DataFrame) -> None:
@@ -262,19 +289,57 @@ def _tab_metrics(df_in: pd.DataFrame) -> None:
     gap_n  = int(df_in["compliance_gaps"].apply(
                  lambda g: isinstance(g, list) and len(g) > 0).sum()) \
              if "compliance_gaps" in df_in.columns else 0
-
+    mfg_n  = int((df_in.get("channel_type", pd.Series(dtype=str))
+                  .astype(str) == "Manufacturer").sum()) \
+             if "channel_type" in df_in.columns else 0
+    imp_n  = int((df_in.get("channel_type", pd.Series(dtype=str))
+                  .astype(str) == "Importer").sum()) \
+             if "channel_type" in df_in.columns else 0
     m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("Total",          len(df_in))
-    m2.metric("🟢 High",        high_n)
-    m3.metric("🔴 With Gaps",   gap_n)
+    m1.metric("Total",           len(df_in))
+    m2.metric("🟢 High",         high_n)
+    m3.metric("🔴 With Gaps",    gap_n)
+    m4.metric("🏭 Manufacturers", mfg_n)
+    m5.metric("📦 Importers",    imp_n)
 
-    # New: channel breakdown
-    if "channel_type" in df_in.columns:
-        mfg_n  = int((df_in["channel_type"].astype(str) == "Manufacturer").sum())
-        imp_n  = int((df_in["channel_type"].astype(str) == "Importer").sum())
-        m4.metric("🏭 Manufacturers", mfg_n)
-        m5.metric("📦 Importers",     imp_n)
+# ---------------------------------------------------------------------------
+# NEW: In-memory filter function — applies sidebar dropdowns to a dataframe
+# ---------------------------------------------------------------------------
 
+def _apply_filters(df_in: pd.DataFrame,
+                   f_industries: list,
+                   f_country: str,
+                   f_states: list) -> pd.DataFrame:
+    """Apply industry / country / state dropdown filters to a dataframe."""
+    df = df_in.copy()
+
+    # --- Industry filter ---
+    if f_industries:
+        if "industry_detected" in df.columns:
+            mask = df["industry_detected"].astype(str).str.strip().isin(f_industries)
+            df   = df[mask]
+        else:
+            return pd.DataFrame()
+
+    # --- Country filter ---
+    if f_country and f_country != "Any":
+        if "country_detected" in df.columns:
+            mask = df["country_detected"].astype(str).str.strip().str.lower() \
+                   == f_country.lower()
+            df   = df[mask]
+        else:
+            return pd.DataFrame()
+
+    # --- State / City filter ---
+    if f_states:
+        if "city" in df.columns:
+            # city column may hold city OR state name — check both
+            mask = df["city"].astype(str).str.strip().isin(f_states)
+            df   = df[mask]
+        else:
+            return pd.DataFrame()
+
+    return df
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -337,9 +402,76 @@ def _build_more_like_query(seed_row):
     q = " ".join(p for p in [searched_query, product_text] if p).strip()
     return q or company
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# SIDEBAR — Dropdown filters
+# ===========================================================================
+with st.sidebar:
+    st.markdown("## 🔎 Filter Leads")
+    st.caption("Filters apply to all tabs in Saved Leads.")
+
+    # ---- Industry ----
+    st.markdown("### 🏭 Industry")
+    sel_industries = st.multiselect(
+        "Select industries",
+        options=ALL_INDUSTRIES,
+        default=[],
+        placeholder="All industries",
+        key="filter_industry",
+    )
+
+    st.markdown("---")
+
+    # ---- Country ----
+    st.markdown("### 🌍 Country")
+    sel_country = st.selectbox(
+        "Select country",
+        options=ALL_COUNTRIES,
+        index=0,
+        key="filter_country",
+    )
+
+    # ---- State / Region (dynamic based on selected country) ----
+    state_options = []
+    if sel_country and sel_country != "Any":
+        state_options = COUNTRY_STATES.get(sel_country, [])
+
+    sel_states = []
+    if state_options:
+        st.markdown(f"### 📍 State / Region ({sel_country})")
+        sel_states = st.multiselect(
+            f"Select state or region",
+            options=state_options,
+            default=[],
+            placeholder=f"All states in {sel_country}",
+            key="filter_state",
+        )
+
+    st.markdown("---")
+
+    # ---- Active filter summary ----
+    active_filters = []
+    if sel_industries:
+        active_filters.append(f"**Industry:** {', '.join(sel_industries)}")
+    if sel_country and sel_country != "Any":
+        active_filters.append(f"**Country:** {sel_country}")
+    if sel_states:
+        active_filters.append(f"**State/Region:** {', '.join(sel_states)}")
+
+    if active_filters:
+        st.markdown("#### ✅ Active Filters")
+        for f in active_filters:
+            st.markdown(f"- {f}")
+        if st.button("🗑️ Clear Filters", use_container_width=True):
+            st.session_state.filter_industry = []
+            st.session_state.filter_country  = "Any"
+            st.session_state.filter_state    = []
+            st.rerun()
+    else:
+        st.caption("No filters active — showing all leads.")
+
+# ===========================================================================
 # Page header
-# ---------------------------------------------------------------------------
+# ===========================================================================
 st.title("🌐 Global B2B Lead Discovery Engine")
 st.caption("Background search · Enriched profiles · Compliance gap detection")
 
@@ -364,11 +496,6 @@ with st.expander("🔌 Backend Connection", expanded=False):
             st.error(f"❌ Backend returned HTTP {ping.status_code}")
     except Exception as e:
         st.error(f"❌ Cannot reach backend: {e}")
-        st.markdown(f"""
-        **Troubleshooting:**
-        - Backend URL: `{API}`
-        - Set `BACKEND_URL` in Streamlit secrets if deploying to cloud.
-        """)
 
 # ---------------------------------------------------------------------------
 # Colour legend
@@ -395,7 +522,8 @@ query = st.text_input(
 )
 
 country_options  = ["Any","india","canada","italy","dubai","UAE","china","singapore","Custom"]
-selected_country = st.selectbox("Country filter", options=country_options, index=0)
+selected_country = st.selectbox("Search country filter", options=country_options, index=0,
+                                key="search_country_select")
 custom_country   = ""
 if selected_country == "Custom":
     custom_country = st.text_input("Custom country", value="")
@@ -423,7 +551,7 @@ with col2:
     if st.button("🔄 Refresh", use_container_width=True):
         st.rerun()
 with col3:
-    if st.button("🗑️ Clear All", use_container_width=True):
+    if st.button("🗑️ Clear All Leads", use_container_width=True):
         try:
             requests.delete(f"{API}/clear", timeout=15)
             for k, v in _DEFAULTS.items():
@@ -491,21 +619,21 @@ if st.session_state.active_job_id:
         company_live = [x for x in st.session_state.live_results
                         if x.get("source") != "linkedin_semantic"]
 
-        high_n    = sum(1 for x in company_live if str(x.get("importance","")).lower()=="high")
-        medium_n  = sum(1 for x in company_live if str(x.get("importance","")).lower()=="medium")
-        gap_n     = sum(1 for x in company_live
-                        if isinstance(x.get("compliance_gaps"), list)
-                        and len(x["compliance_gaps"]) > 0)
-        mfg_n     = sum(1 for x in company_live if x.get("channel_type") == "Manufacturer")
-        imp_n     = sum(1 for x in company_live if x.get("channel_type") == "Importer")
+        high_n   = sum(1 for x in company_live if str(x.get("importance","")).lower()=="high")
+        medium_n = sum(1 for x in company_live if str(x.get("importance","")).lower()=="medium")
+        gap_n    = sum(1 for x in company_live
+                       if isinstance(x.get("compliance_gaps"), list)
+                       and len(x["compliance_gaps"]) > 0)
+        mfg_n    = sum(1 for x in company_live if x.get("channel_type") == "Manufacturer")
+        imp_n    = sum(1 for x in company_live if x.get("channel_type") == "Importer")
 
         c1, c2, c3, c4, c5, c6 = st.columns(6)
-        c1.metric("Results",         len(company_live))
-        c2.metric("🟢 High",         high_n)
-        c3.metric("🟡 Medium",        medium_n)
-        c4.metric("🔴 Has Gaps",      gap_n)
-        c5.metric("🏭 Manufacturers", mfg_n)
-        c6.metric("📦 Importers",     imp_n)
+        c1.metric("Results",          len(company_live))
+        c2.metric("🟢 High",          high_n)
+        c3.metric("🟡 Medium",         medium_n)
+        c4.metric("🔴 Has Gaps",       gap_n)
+        c5.metric("🏭 Manufacturers",  mfg_n)
+        c6.metric("📦 Importers",      imp_n)
 
         st.caption(
             f"Status: **{status.get('status','—')}** | "
@@ -662,6 +790,31 @@ if data:
     linkedin_df = df[df["source"] == "linkedin_semantic"].copy() \
                   if "source" in df.columns else pd.DataFrame()
 
+    # -----------------------------------------------------------------------
+    # Apply sidebar dropdown filters to company_df
+    # -----------------------------------------------------------------------
+    filtered_df = _apply_filters(
+        company_df,
+        f_industries=sel_industries,
+        f_country=sel_country,
+        f_states=sel_states,
+    )
+
+    # Show active-filter banner above tabs
+    if sel_industries or (sel_country and sel_country != "Any") or sel_states:
+        parts = []
+        if sel_industries:
+            parts.append(f"Industry: **{', '.join(sel_industries)}**")
+        if sel_country and sel_country != "Any":
+            parts.append(f"Country: **{sel_country}**")
+        if sel_states:
+            parts.append(f"State/Region: **{', '.join(sel_states)}**")
+        st.info(
+            f"🔎 Filters active — {len(filtered_df)} of {len(company_df)} leads shown  |  "
+            + "  ·  ".join(parts)
+        )
+
+    # ---- Helper filters that operate on already-filtered_df ----
     def _filter_gap(df_in, gap_code):
         if "compliance_gaps" not in df_in.columns:
             return pd.DataFrame()
@@ -692,55 +845,51 @@ if data:
     ])
 
     with tab_all:
-        _tab_metrics(company_df)
-        _show_table(company_df, key_suffix="all")
+        _tab_metrics(filtered_df)
+        _show_table(filtered_df, key_suffix="all")
 
     with tab_gaps:
         st.info("🎯 Companies with at least one compliance gap — highest priority prospects.")
-        gdf = _filter_any_gap(company_df)
-        _tab_metrics(gdf)
-        _show_table(gdf, key_suffix="gaps")
+        _tab_metrics(_filter_any_gap(filtered_df))
+        _show_table(_filter_any_gap(filtered_df), key_suffix="gaps")
 
     with tab_mfg:
         st.info("🏭 Manufacturers — companies that produce goods themselves.")
-        mdf = _filter_channel(company_df, "Manufacturer")
+        mdf = _filter_channel(filtered_df, "Manufacturer")
         _tab_metrics(mdf)
         _show_table(mdf, key_suffix="manufacturer")
 
     with tab_imp:
         st.info("📦 Importers — companies that bring goods from overseas.")
-        idf = _filter_channel(company_df, "Importer")
+        idf = _filter_channel(filtered_df, "Importer")
         _tab_metrics(idf)
         _show_table(idf, key_suffix="importer")
 
     with tab_trade:
         st.info("🤝 Traders, Distributors, Wholesalers, Retailers.")
         tdf = pd.concat([
-            _filter_channel(company_df, "Trader"),
-            _filter_channel(company_df, "Distributor"),
-            _filter_channel(company_df, "Wholesaler"),
-            _filter_channel(company_df, "Retailer"),
-        ], ignore_index=True) if not company_df.empty else pd.DataFrame()
+            _filter_channel(filtered_df, "Trader"),
+            _filter_channel(filtered_df, "Distributor"),
+            _filter_channel(filtered_df, "Wholesaler"),
+            _filter_channel(filtered_df, "Retailer"),
+        ], ignore_index=True) if not filtered_df.empty else pd.DataFrame()
         _tab_metrics(tdf)
         _show_table(tdf, key_suffix="traders")
 
     with tab_no_bis:
         st.info("🔴 No BIS licence — cannot legally sell regulated products in India.")
-        gdf = _filter_gap(company_df, "no_bis")
-        _tab_metrics(gdf)
-        _show_table(gdf, key_suffix="no_bis")
+        _tab_metrics(_filter_gap(filtered_df, "no_bis"))
+        _show_table(_filter_gap(filtered_df, "no_bis"), key_suffix="no_bis")
 
     with tab_no_iec:
         st.info("📦 No IEC — cannot legally import or export.")
-        gdf = _filter_gap(company_df, "no_iec")
-        _tab_metrics(gdf)
-        _show_table(gdf, key_suffix="no_iec")
+        _tab_metrics(_filter_gap(filtered_df, "no_iec"))
+        _show_table(_filter_gap(filtered_df, "no_iec"), key_suffix="no_iec")
 
     with tab_no_gst:
         st.info("🧾 No GST registration — needs registration and filing support.")
-        gdf = _filter_gap(company_df, "no_gst")
-        _tab_metrics(gdf)
-        _show_table(gdf, key_suffix="no_gst")
+        _tab_metrics(_filter_gap(filtered_df, "no_gst"))
+        _show_table(_filter_gap(filtered_df, "no_gst"), key_suffix="no_gst")
 
     if not linkedin_df.empty:
         with st.expander("👤 LinkedIn Profiles"):
