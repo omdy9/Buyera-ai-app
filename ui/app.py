@@ -48,7 +48,7 @@ ALL_INDUSTRIES = [
     "Healthcare", "Logistics", "Agriculture", "Energy", "Retail",
 ]
 
-# Country → States/Cities mapping
+# Country → States / Regions
 COUNTRY_STATES = {
     "India": [
         "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
@@ -60,70 +60,73 @@ COUNTRY_STATES = {
         "Puducherry", "Lakshadweep", "Andaman & Nicobar",
     ],
     "UAE": [
-        "Dubai", "Abu Dhabi", "Sharjah", "Ajman", "Ras Al Khaimah",
-        "Fujairah", "Umm Al Quwain",
+        "Dubai", "Abu Dhabi", "Sharjah", "Ajman",
+        "Ras Al Khaimah", "Fujairah", "Umm Al Quwain",
     ],
     "USA": [
-        "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado",
-        "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho",
-        "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana",
-        "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota",
-        "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada",
-        "New Hampshire", "New Jersey", "New Mexico", "New York",
-        "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon",
-        "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota",
-        "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington",
-        "West Virginia", "Wisconsin", "Wyoming",
+        "Alabama","Alaska","Arizona","Arkansas","California","Colorado",
+        "Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho",
+        "Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana",
+        "Maine","Maryland","Massachusetts","Michigan","Minnesota",
+        "Mississippi","Missouri","Montana","Nebraska","Nevada",
+        "New Hampshire","New Jersey","New Mexico","New York",
+        "North Carolina","North Dakota","Ohio","Oklahoma","Oregon",
+        "Pennsylvania","Rhode Island","South Carolina","South Dakota",
+        "Tennessee","Texas","Utah","Vermont","Virginia","Washington",
+        "West Virginia","Wisconsin","Wyoming",
     ],
     "UK": [
-        "England", "Scotland", "Wales", "Northern Ireland",
-        "London", "Manchester", "Birmingham", "Leeds", "Glasgow",
-        "Liverpool", "Bristol", "Sheffield", "Edinburgh",
+        "England","Scotland","Wales","Northern Ireland",
+        "London","Manchester","Birmingham","Leeds","Glasgow",
+        "Liverpool","Bristol","Sheffield","Edinburgh",
     ],
     "Germany": [
-        "Baden-Württemberg", "Bavaria", "Berlin", "Brandenburg", "Bremen",
-        "Hamburg", "Hesse", "Lower Saxony", "Mecklenburg-Vorpommern",
-        "North Rhine-Westphalia", "Rhineland-Palatinate", "Saarland",
-        "Saxony", "Saxony-Anhalt", "Schleswig-Holstein", "Thuringia",
+        "Baden-Württemberg","Bavaria","Berlin","Brandenburg","Bremen",
+        "Hamburg","Hesse","Lower Saxony","Mecklenburg-Vorpommern",
+        "North Rhine-Westphalia","Rhineland-Palatinate","Saarland",
+        "Saxony","Saxony-Anhalt","Schleswig-Holstein","Thuringia",
     ],
     "Canada": [
-        "Alberta", "British Columbia", "Manitoba", "New Brunswick",
-        "Newfoundland and Labrador", "Nova Scotia", "Ontario",
-        "Prince Edward Island", "Quebec", "Saskatchewan",
-        "Northwest Territories", "Nunavut", "Yukon",
+        "Alberta","British Columbia","Manitoba","New Brunswick",
+        "Newfoundland and Labrador","Nova Scotia","Ontario",
+        "Prince Edward Island","Quebec","Saskatchewan",
+        "Northwest Territories","Nunavut","Yukon",
     ],
     "Australia": [
-        "New South Wales", "Victoria", "Queensland", "South Australia",
-        "Western Australia", "Tasmania", "ACT", "Northern Territory",
+        "New South Wales","Victoria","Queensland","South Australia",
+        "Western Australia","Tasmania","ACT","Northern Territory",
     ],
-    "Singapore": ["Central Region", "East Region", "North Region",
-                  "North-East Region", "West Region"],
+    "Singapore": [
+        "Central Region","East Region","North Region",
+        "North-East Region","West Region",
+    ],
     "China": [
-        "Beijing", "Shanghai", "Guangdong", "Zhejiang", "Jiangsu",
-        "Shandong", "Sichuan", "Hubei", "Hunan", "Fujian",
-        "Anhui", "Henan", "Liaoning", "Chongqing", "Tianjin",
+        "Beijing","Shanghai","Guangdong","Zhejiang","Jiangsu",
+        "Shandong","Sichuan","Hubei","Hunan","Fujian",
+        "Anhui","Henan","Liaoning","Chongqing","Tianjin",
     ],
     "Italy": [
-        "Lombardy", "Lazio", "Campania", "Sicily", "Veneto",
-        "Emilia-Romagna", "Piedmont", "Apulia", "Tuscany", "Calabria",
+        "Lombardy","Lazio","Campania","Sicily","Veneto",
+        "Emilia-Romagna","Piedmont","Apulia","Tuscany","Calabria",
     ],
     "France": [
-        "Île-de-France", "Auvergne-Rhône-Alpes", "Nouvelle-Aquitaine",
-        "Occitanie", "Hauts-de-France", "Grand Est", "Provence-Alpes-Côte d'Azur",
-        "Pays de la Loire", "Normandy", "Brittany",
+        "Île-de-France","Auvergne-Rhône-Alpes","Nouvelle-Aquitaine",
+        "Occitanie","Hauts-de-France","Grand Est",
+        "Provence-Alpes-Côte d'Azur","Pays de la Loire","Normandy","Brittany",
     ],
     "Japan": [
-        "Tokyo", "Osaka", "Kanagawa", "Aichi", "Saitama", "Chiba",
-        "Hyogo", "Hokkaido", "Fukuoka", "Shizuoka",
+        "Tokyo","Osaka","Kanagawa","Aichi","Saitama","Chiba",
+        "Hyogo","Hokkaido","Fukuoka","Shizuoka",
     ],
 }
 
 ALL_COUNTRIES = ["Any"] + sorted(COUNTRY_STATES.keys())
 
 # ---------------------------------------------------------------------------
-# Session state
+# Session state — initialise ALL keys before any widget is rendered
 # ---------------------------------------------------------------------------
 _DEFAULTS = {
+    # search / job state
     "active_job_id":         "",
     "active_query":          "",
     "live_results":          [],
@@ -133,6 +136,11 @@ _DEFAULTS = {
     "mlt_results":           [],
     "mlt_seed_result_index": None,
     "mlt_seed_company":      "",
+    # search filter state  (owned here, not by widgets)
+    "sf_query":              "",
+    "sf_country":            "Any",
+    "sf_state":              "Any",
+    "sf_industry":           "Any",
 }
 for k, v in _DEFAULTS.items():
     if k not in st.session_state:
@@ -244,7 +252,7 @@ def _row_style(row):
 
 def _show_table(df_in: pd.DataFrame, key_suffix: str = "") -> None:
     if df_in.empty:
-        st.info("No leads match the current filters.")
+        st.info("No leads in this category yet.")
         return
     df = _prep_df(df_in)
     styled = (
@@ -296,65 +304,36 @@ def _tab_metrics(df_in: pd.DataFrame) -> None:
                   .astype(str) == "Importer").sum()) \
              if "channel_type" in df_in.columns else 0
     m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("Total",           len(df_in))
-    m2.metric("🟢 High",         high_n)
-    m3.metric("🔴 With Gaps",    gap_n)
+    m1.metric("Total",            len(df_in))
+    m2.metric("🟢 High",          high_n)
+    m3.metric("🔴 With Gaps",     gap_n)
     m4.metric("🏭 Manufacturers", mfg_n)
-    m5.metric("📦 Importers",    imp_n)
+    m5.metric("📦 Importers",     imp_n)
 
-# ---------------------------------------------------------------------------
-# NEW: In-memory filter function — applies sidebar dropdowns to a dataframe
-# ---------------------------------------------------------------------------
-
-def _apply_filters(df_in: pd.DataFrame,
-                   f_industries: list,
-                   f_country: str,
-                   f_states: list) -> pd.DataFrame:
-    """Apply industry / country / state dropdown filters to a dataframe."""
-    df = df_in.copy()
-
-    # --- Industry filter ---
-    if f_industries:
-        if "industry_detected" in df.columns:
-            mask = df["industry_detected"].astype(str).str.strip().isin(f_industries)
-            df   = df[mask]
-        else:
-            return pd.DataFrame()
-
-    # --- Country filter ---
-    if f_country and f_country != "Any":
-        if "country_detected" in df.columns:
-            mask = df["country_detected"].astype(str).str.strip().str.lower() \
-                   == f_country.lower()
-            df   = df[mask]
-        else:
-            return pd.DataFrame()
-
-    # --- State / City filter ---
-    if f_states:
-        if "city" in df.columns:
-            # city column may hold city OR state name — check both
-            mask = df["city"].astype(str).str.strip().isin(f_states)
-            df   = df[mask]
-        else:
-            return pd.DataFrame()
-
-    return df
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+def _do_clear_filters():
+    """Reset filter state — called via on_click so no post-widget assignment."""
+    st.session_state.sf_industry = "Any"
+    st.session_state.sf_country  = "Any"
+    st.session_state.sf_state    = "Any"
+
+
 def _start_background_search(search_query, continue_search=False, reset_results=False):
+    # Build the country_filter string from session state
+    cf = "" if st.session_state.sf_country == "Any" else st.session_state.sf_country.lower()
     try:
         response = requests.post(
             f"{API}/search/start",
             params={
                 "query":              search_query,
                 "continue_search":    str(continue_search).lower(),
-                "scan_all_remaining": str(scan_all_remaining).lower(),
-                "country_filter":     country_filter.strip().lower(),
-                "trusted_only":       str(trusted_only).lower(),
+                "scan_all_remaining": str(st.session_state.get("scan_all_remaining", False)).lower(),
+                "country_filter":     cf,
+                "trusted_only":       str(st.session_state.get("trusted_only", False)).lower(),
             },
             timeout=30,
         )
@@ -402,76 +381,10 @@ def _build_more_like_query(seed_row):
     q = " ".join(p for p in [searched_query, product_text] if p).strip()
     return q or company
 
-# ===========================================================================
-# SIDEBAR — Dropdown filters
-# ===========================================================================
-with st.sidebar:
-    st.markdown("## 🔎 Filter Leads")
-    st.caption("Filters apply to all tabs in Saved Leads.")
 
-    # ---- Industry ----
-    st.markdown("### 🏭 Industry")
-    sel_industries = st.multiselect(
-        "Select industries",
-        options=ALL_INDUSTRIES,
-        default=[],
-        placeholder="All industries",
-        key="filter_industry",
-    )
-
-    st.markdown("---")
-
-    # ---- Country ----
-    st.markdown("### 🌍 Country")
-    sel_country = st.selectbox(
-        "Select country",
-        options=ALL_COUNTRIES,
-        index=0,
-        key="filter_country",
-    )
-
-    # ---- State / Region (dynamic based on selected country) ----
-    state_options = []
-    if sel_country and sel_country != "Any":
-        state_options = COUNTRY_STATES.get(sel_country, [])
-
-    sel_states = []
-    if state_options:
-        st.markdown(f"### 📍 State / Region ({sel_country})")
-        sel_states = st.multiselect(
-            f"Select state or region",
-            options=state_options,
-            default=[],
-            placeholder=f"All states in {sel_country}",
-            key="filter_state",
-        )
-
-    st.markdown("---")
-
-    # ---- Active filter summary ----
-    active_filters = []
-    if sel_industries:
-        active_filters.append(f"**Industry:** {', '.join(sel_industries)}")
-    if sel_country and sel_country != "Any":
-        active_filters.append(f"**Country:** {sel_country}")
-    if sel_states:
-        active_filters.append(f"**State/Region:** {', '.join(sel_states)}")
-
-    if active_filters:
-        st.markdown("#### ✅ Active Filters")
-        for f in active_filters:
-            st.markdown(f"- {f}")
-        if st.button("🗑️ Clear Filters", use_container_width=True):
-            st.session_state.filter_industry = []
-            st.session_state.filter_country  = "Any"
-            st.session_state.filter_state    = []
-            st.rerun()
-    else:
-        st.caption("No filters active — showing all leads.")
-
-# ===========================================================================
+# ---------------------------------------------------------------------------
 # Page header
-# ===========================================================================
+# ---------------------------------------------------------------------------
 st.title("🌐 Global B2B Lead Discovery Engine")
 st.caption("Background search · Enriched profiles · Compliance gap detection")
 
@@ -512,45 +425,104 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---------------------------------------------------------------------------
-# Query input
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# SEARCH FILTERS  (single block — no sidebar, no duplication)
+# ===========================================================================
+st.markdown("### 🔍 Search")
+
+# Row 1: query text input
 query = st.text_input(
-    "Search query  (e.g.  electronics importers india)",
-    value=st.session_state.active_query,
-    placeholder="furniture manufacturers india",
+    "Search query",
+    value=st.session_state.sf_query,
+    placeholder="e.g. electronics importers india",
+    key="sf_query",               # bound to session state directly
 )
 
-country_options  = ["Any","india","canada","italy","dubai","UAE","china","singapore","Custom"]
-selected_country = st.selectbox("Search country filter", options=country_options, index=0,
-                                key="search_country_select")
-custom_country   = ""
-if selected_country == "Custom":
-    custom_country = st.text_input("Custom country", value="")
+# Row 2: Country | State/Region | Industry  — three dropdowns in one row
+fc1, fc2, fc3 = st.columns(3)
 
-country_filter = ""
-if selected_country not in {"Any", "Custom"}:
-    country_filter = selected_country
-elif selected_country == "Custom":
-    country_filter = custom_country.strip().lower()
+with fc1:
+    sel_country = st.selectbox(
+        "🌍 Country",
+        options=ALL_COUNTRIES,
+        index=ALL_COUNTRIES.index(st.session_state.sf_country)
+              if st.session_state.sf_country in ALL_COUNTRIES else 0,
+        key="sf_country",
+    )
 
+# State options depend on which country is selected
+state_options = ["Any"] + COUNTRY_STATES.get(sel_country, []) if sel_country != "Any" else ["Any"]
+
+# If the saved state is no longer valid for the new country, reset it
+if st.session_state.sf_state not in state_options:
+    st.session_state.sf_state = "Any"
+
+with fc2:
+    sel_state = st.selectbox(
+        f"📍 State / Region",
+        options=state_options,
+        index=state_options.index(st.session_state.sf_state)
+              if st.session_state.sf_state in state_options else 0,
+        key="sf_state",
+        disabled=(sel_country == "Any"),
+    )
+
+with fc3:
+    sel_industry = st.selectbox(
+        "🏭 Industry",
+        options=["Any"] + ALL_INDUSTRIES,
+        index=(["Any"] + ALL_INDUSTRIES).index(st.session_state.sf_industry)
+              if st.session_state.sf_industry in ["Any"] + ALL_INDUSTRIES else 0,
+        key="sf_industry",
+    )
+
+# Row 3: options checkboxes
 col_a, col_b = st.columns(2)
 with col_a:
-    scan_all_remaining = st.checkbox("Continue until no pages", value=False)
+    scan_all_remaining = st.checkbox("Continue until no pages", value=False,
+                                     key="scan_all_remaining")
 with col_b:
-    trusted_only = st.checkbox("Trusted domains only", value=False)
+    trusted_only = st.checkbox("Trusted domains only", value=False,
+                               key="trusted_only")
 
-col1, col2, col3 = st.columns(3)
+# Row 4: action buttons
+col1, col2, col3, col4 = st.columns(4)
+
+# Build the country_filter string sent to backend
+country_filter = "" if sel_country == "Any" else sel_country.lower()
+# Append state to query if selected
+state_suffix = "" if (not sel_state or sel_state == "Any") else sel_state
+industry_suffix = "" if (not sel_industry or sel_industry == "Any") else sel_industry
+
+def _build_search_query() -> str:
+    """Combine text query + industry + state into the final query string."""
+    parts = [query.strip()]
+    if industry_suffix and industry_suffix.lower() not in query.lower():
+        parts.append(industry_suffix)
+    if state_suffix and state_suffix.lower() not in query.lower():
+        parts.append(state_suffix)
+    if country_filter and country_filter not in query.lower():
+        parts.append(country_filter)
+    return " ".join(p for p in parts if p).strip()
+
 with col1:
     if st.button("🔍 Start Search", use_container_width=True):
-        if not query.strip():
-            st.warning("Please enter a query")
+        final_query = _build_search_query()
+        if not final_query:
+            st.warning("Please enter a search query")
         else:
-            _start_background_search(query.strip(), continue_search=False, reset_results=True)
+            _start_background_search(final_query, continue_search=False, reset_results=True)
+
 with col2:
     if st.button("🔄 Refresh", use_container_width=True):
         st.rerun()
+
 with col3:
+    # Clear filters — use on_click callback to avoid post-widget state assignment
+    st.button("🗑️ Clear Filters", use_container_width=True,
+              on_click=_do_clear_filters)
+
+with col4:
     if st.button("🗑️ Clear All Leads", use_container_width=True):
         try:
             requests.delete(f"{API}/clear", timeout=15)
@@ -561,16 +533,26 @@ with col3:
         except Exception as e:
             st.error(f"Cannot reach backend: {e}")
 
+# Show active filter summary inline (small, unobtrusive)
+active_parts = []
+if sel_country != "Any":
+    active_parts.append(f"**Country:** {sel_country}")
+if sel_state and sel_state != "Any":
+    active_parts.append(f"**State:** {sel_state}")
+if sel_industry != "Any":
+    active_parts.append(f"**Industry:** {sel_industry}")
+if active_parts:
+    st.caption("🔎 Active filters: " + "  ·  ".join(active_parts))
+
 # Compliance enrichment
 with st.expander("🔬 Run Compliance Checks on Saved Leads", expanded=False):
-    st.caption("Compliance checks (BIS · GST · DGFT · MCA) also update incorporation date and company type.")
+    st.caption("Runs BIS · GST · DGFT · MCA checks and also fills in incorporation date and company type.")
     enrich_limit = st.slider("Max leads to check", 10, 200, 50, key="enrich_limit")
     if st.button("▶️ Start Compliance Checks", key="enrich_btn"):
         try:
             r = requests.post(
                 f"{API}/leads/enrich-compliance",
-                params={"limit": enrich_limit,
-                        "country_filter": country_filter.strip().lower()},
+                params={"limit": enrich_limit, "country_filter": country_filter},
                 timeout=300,
             )
             if r.status_code == 200:
@@ -736,20 +718,18 @@ st.subheader("📁 Saved Leads")
 
 try:
     lead_params = {"limit": 1000}
-    if country_filter.strip():
-        lead_params["country_filter"] = country_filter.strip().lower()
+    if country_filter:
+        lead_params["country_filter"] = country_filter
     res  = requests.get(f"{API}/leads", params=lead_params, timeout=20)
     data = res.json()
 except Exception as e:
     st.error(f"Backend not reachable: {e}")
-    st.markdown(f"**URL being called:** `{API}/leads`")
+    st.markdown(f"**URL:** `{API}/leads`")
     st.stop()
 
-# Compliance gap summary
+# Compliance gap summary cards
 try:
-    gp = {}
-    if country_filter.strip():
-        gp["country_filter"] = country_filter.strip().lower()
+    gp = {"country_filter": country_filter} if country_filter else {}
     gr       = requests.get(f"{API}/leads/gap-summary", params=gp, timeout=10)
     gap_summ = gr.json() if gr.status_code == 200 else {}
 except Exception:
@@ -761,11 +741,9 @@ if gap_summ:
     for i, (gc, cnt) in enumerate(gap_summ.items()):
         gcols[i % len(gcols)].metric(GAP_LABELS.get(gc, gc), cnt)
 
-# Channel type summary
+# Channel type summary cards
 try:
-    cp = {}
-    if country_filter.strip():
-        cp["country_filter"] = country_filter.strip().lower()
+    cp           = {"country_filter": country_filter} if country_filter else {}
     cr           = requests.get(f"{API}/leads/channel-summary", params=cp, timeout=10)
     channel_summ = cr.json() if cr.status_code == 200 else {}
 except Exception:
@@ -779,8 +757,7 @@ if channel_summ:
     }
     ccols = st.columns(min(len(channel_summ), 6) or 1)
     for i, (ch, cnt) in enumerate(channel_summ.items()):
-        icon = ch_icons.get(ch, "")
-        ccols[i % len(ccols)].metric(f"{icon} {ch}", cnt)
+        ccols[i % len(ccols)].metric(f"{ch_icons.get(ch,'')} {ch}", cnt)
 
 if data:
     df = pd.DataFrame(data)
@@ -790,31 +767,6 @@ if data:
     linkedin_df = df[df["source"] == "linkedin_semantic"].copy() \
                   if "source" in df.columns else pd.DataFrame()
 
-    # -----------------------------------------------------------------------
-    # Apply sidebar dropdown filters to company_df
-    # -----------------------------------------------------------------------
-    filtered_df = _apply_filters(
-        company_df,
-        f_industries=sel_industries,
-        f_country=sel_country,
-        f_states=sel_states,
-    )
-
-    # Show active-filter banner above tabs
-    if sel_industries or (sel_country and sel_country != "Any") or sel_states:
-        parts = []
-        if sel_industries:
-            parts.append(f"Industry: **{', '.join(sel_industries)}**")
-        if sel_country and sel_country != "Any":
-            parts.append(f"Country: **{sel_country}**")
-        if sel_states:
-            parts.append(f"State/Region: **{', '.join(sel_states)}**")
-        st.info(
-            f"🔎 Filters active — {len(filtered_df)} of {len(company_df)} leads shown  |  "
-            + "  ·  ".join(parts)
-        )
-
-    # ---- Helper filters that operate on already-filtered_df ----
     def _filter_gap(df_in, gap_code):
         if "compliance_gaps" not in df_in.columns:
             return pd.DataFrame()
@@ -845,51 +797,55 @@ if data:
     ])
 
     with tab_all:
-        _tab_metrics(filtered_df)
-        _show_table(filtered_df, key_suffix="all")
+        _tab_metrics(company_df)
+        _show_table(company_df, key_suffix="all")
 
     with tab_gaps:
         st.info("🎯 Companies with at least one compliance gap — highest priority prospects.")
-        _tab_metrics(_filter_any_gap(filtered_df))
-        _show_table(_filter_any_gap(filtered_df), key_suffix="gaps")
+        gdf = _filter_any_gap(company_df)
+        _tab_metrics(gdf)
+        _show_table(gdf, key_suffix="gaps")
 
     with tab_mfg:
         st.info("🏭 Manufacturers — companies that produce goods themselves.")
-        mdf = _filter_channel(filtered_df, "Manufacturer")
+        mdf = _filter_channel(company_df, "Manufacturer")
         _tab_metrics(mdf)
         _show_table(mdf, key_suffix="manufacturer")
 
     with tab_imp:
         st.info("📦 Importers — companies that bring goods from overseas.")
-        idf = _filter_channel(filtered_df, "Importer")
+        idf = _filter_channel(company_df, "Importer")
         _tab_metrics(idf)
         _show_table(idf, key_suffix="importer")
 
     with tab_trade:
         st.info("🤝 Traders, Distributors, Wholesalers, Retailers.")
         tdf = pd.concat([
-            _filter_channel(filtered_df, "Trader"),
-            _filter_channel(filtered_df, "Distributor"),
-            _filter_channel(filtered_df, "Wholesaler"),
-            _filter_channel(filtered_df, "Retailer"),
-        ], ignore_index=True) if not filtered_df.empty else pd.DataFrame()
+            _filter_channel(company_df, "Trader"),
+            _filter_channel(company_df, "Distributor"),
+            _filter_channel(company_df, "Wholesaler"),
+            _filter_channel(company_df, "Retailer"),
+        ], ignore_index=True) if not company_df.empty else pd.DataFrame()
         _tab_metrics(tdf)
         _show_table(tdf, key_suffix="traders")
 
     with tab_no_bis:
         st.info("🔴 No BIS licence — cannot legally sell regulated products in India.")
-        _tab_metrics(_filter_gap(filtered_df, "no_bis"))
-        _show_table(_filter_gap(filtered_df, "no_bis"), key_suffix="no_bis")
+        gdf = _filter_gap(company_df, "no_bis")
+        _tab_metrics(gdf)
+        _show_table(gdf, key_suffix="no_bis")
 
     with tab_no_iec:
         st.info("📦 No IEC — cannot legally import or export.")
-        _tab_metrics(_filter_gap(filtered_df, "no_iec"))
-        _show_table(_filter_gap(filtered_df, "no_iec"), key_suffix="no_iec")
+        gdf = _filter_gap(company_df, "no_iec")
+        _tab_metrics(gdf)
+        _show_table(gdf, key_suffix="no_iec")
 
     with tab_no_gst:
         st.info("🧾 No GST registration — needs registration and filing support.")
-        _tab_metrics(_filter_gap(filtered_df, "no_gst"))
-        _show_table(_filter_gap(filtered_df, "no_gst"), key_suffix="no_gst")
+        gdf = _filter_gap(company_df, "no_gst")
+        _tab_metrics(gdf)
+        _show_table(gdf, key_suffix="no_gst")
 
     if not linkedin_df.empty:
         with st.expander("👤 LinkedIn Profiles"):
