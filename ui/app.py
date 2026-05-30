@@ -37,6 +37,11 @@ GAP_LABELS = {
     "mca_inactive":  "Company Struck Off",
 }
 
+CHANNEL_TYPES = [
+    "Manufacturer", "Importer", "Trader",
+    "Wholesaler", "Distributor", "Retailer",
+]
+
 # ---------------------------------------------------------------------------
 # Session state
 # ---------------------------------------------------------------------------
@@ -56,19 +61,84 @@ for k, v in _DEFAULTS.items():
         st.session_state[k] = v
 
 # ---------------------------------------------------------------------------
-# Table helpers
+# Display column definitions
 # ---------------------------------------------------------------------------
+
+# Core identity + new profile columns shown first
 DISPLAY_COLS = [
-    "company", "importance", "final_score",
+    "company",
+    "city",
+    "country_detected",
+    "industry_detected",
+    "product_type",
+    "channel_type",
+    "company_size",
+    "incorporation_date",
+    "importance",
+    "final_score",
     "compliance_gaps",
-    "bis_certified", "gst_registered", "iec_found", "mca_active",
-    "email", "phone", "website",
-    "ai_summary", "products",
-    "domain_authority", "contact_presence",
-    "semantic_score", "keyword_score",
-    "country_filter", "searched_query", "created_at",
+    "bis_certified",
+    "gst_registered",
+    "iec_found",
+    "mca_active",
+    "contact_person",
+    "contact_email",
+    "email",
+    "phone",
+    "linkedin_url",
+    "active_website",
+    "website",
+    "ai_summary",
+    "products",
+    "mca_company_type",
+    "domain_authority",
+    "contact_presence",
+    "semantic_score",
+    "keyword_score",
+    "country_filter",
+    "searched_query",
+    "created_at",
 ]
 
+COLUMN_LABELS = {
+    "company":            "Company Name",
+    "city":               "City",
+    "country_detected":   "Country",
+    "industry_detected":  "Industry",
+    "product_type":       "Product Type",
+    "channel_type":       "Channel Type",
+    "company_size":       "Company Size",
+    "incorporation_date": "Incorporated",
+    "importance":         "Importance",
+    "final_score":        "Score",
+    "compliance_gaps":    "Compliance Gaps",
+    "bis_certified":      "BIS",
+    "gst_registered":     "GST",
+    "iec_found":          "IEC",
+    "mca_active":         "MCA Active",
+    "contact_person":     "Contact Person",
+    "contact_email":      "Contact Email",
+    "email":              "Email",
+    "phone":              "Phone",
+    "linkedin_url":       "LinkedIn",
+    "active_website":     "Active Website",
+    "website":            "Website",
+    "ai_summary":         "AI Summary",
+    "products":           "Products",
+    "mca_company_type":   "Company Type (MCA)",
+    "domain_authority":   "Domain Auth.",
+    "contact_presence":   "Contact Score",
+    "semantic_score":     "Semantic",
+    "keyword_score":      "Keyword",
+    "country_filter":     "Filter Country",
+    "searched_query":     "Query",
+    "created_at":         "Found At",
+}
+
+
+# ---------------------------------------------------------------------------
+# Table helpers
+# ---------------------------------------------------------------------------
 
 def _bool_icon(val) -> str:
     if val is True:  return "✅"
@@ -78,30 +148,42 @@ def _bool_icon(val) -> str:
 
 def _prep_df(df_in: pd.DataFrame) -> pd.DataFrame:
     df = df_in[[c for c in DISPLAY_COLS if c in df_in.columns]].copy()
-    if "compliance_gaps" in df.columns:
-        df["compliance_gaps"] = df["compliance_gaps"].apply(
+    df.rename(columns={c: COLUMN_LABELS.get(c, c) for c in df.columns}, inplace=True)
+
+    label_gaps = COLUMN_LABELS.get("compliance_gaps", "Compliance Gaps")
+    if label_gaps in df.columns:
+        df[label_gaps] = df[label_gaps].apply(
             lambda g: ", ".join(GAP_LABELS.get(x, x) for x in g)
             if isinstance(g, list) else ""
         )
-    if "products" in df.columns:
-        df["products"] = df["products"].apply(
+
+    label_products = COLUMN_LABELS.get("products", "Products")
+    if label_products in df.columns:
+        df[label_products] = df[label_products].apply(
             lambda p: ", ".join(str(x) for x in p) if isinstance(p, list) else str(p or "")
         )
-    for col in ["bis_certified", "gst_registered", "iec_found", "mca_active"]:
-        if col in df.columns:
-            df[col] = df[col].apply(_bool_icon)
-    for col in ["final_score", "semantic_score", "keyword_score",
-                "domain_authority", "contact_presence"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").round(3)
-    if "final_score" in df.columns:
-        df = df.sort_values("final_score", ascending=False)
+
+    for col_key in ["bis_certified", "gst_registered", "iec_found", "mca_active"]:
+        col_label = COLUMN_LABELS.get(col_key, col_key)
+        if col_label in df.columns:
+            df[col_label] = df[col_label].apply(_bool_icon)
+
+    for col_key in ["final_score", "semantic_score", "keyword_score",
+                    "domain_authority", "contact_presence"]:
+        col_label = COLUMN_LABELS.get(col_key, col_key)
+        if col_label in df.columns:
+            df[col_label] = pd.to_numeric(df[col_label], errors="coerce").round(3)
+
+    score_label = COLUMN_LABELS.get("final_score", "Score")
+    if score_label in df.columns:
+        df = df.sort_values(score_label, ascending=False)
+
     return df
 
 
 def _row_style(row):
-    imp     = str(row.get("importance", "")).lower()
-    gaps    = str(row.get("compliance_gaps", ""))
+    imp     = str(row.get("Importance", row.get("importance", ""))).lower()
+    gaps    = str(row.get("Compliance Gaps", row.get("compliance_gaps", "")))
     has_gap = bool(gaps and gaps not in ("", "nan", "None", "[]"))
     if has_gap:
         bg, color = "#4a0d0d", "#ffb3b3"
@@ -125,7 +207,7 @@ def _show_table(df_in: pd.DataFrame, key_suffix: str = "") -> None:
         .set_properties(**{
             "font-size":   "13px",
             "font-family": "monospace",
-            "border-color":"#2d3748",
+            "border-color": "#2d3748",
         })
         .set_table_styles([
             {"selector": "th", "props": [
@@ -141,7 +223,7 @@ def _show_table(df_in: pd.DataFrame, key_suffix: str = "") -> None:
             {"selector": "td", "props": [
                 ("padding",       "7px 12px"),
                 ("border-bottom", "1px solid #1e293b"),
-                ("max-width",     "300px"),
+                ("max-width",     "260px"),
                 ("overflow",      "hidden"),
                 ("text-overflow", "ellipsis"),
                 ("white-space",   "nowrap"),
@@ -156,6 +238,8 @@ def _show_table(df_in: pd.DataFrame, key_suffix: str = "") -> None:
         use_container_width=True,
         height=min(60 + len(df) * 38, 700),
     )
+
+    # CSV export uses original column names
     csv_df = df_in[[c for c in DISPLAY_COLS if c in df_in.columns]].copy()
     for col in ["compliance_gaps", "products"]:
         if col in csv_df.columns:
@@ -178,10 +262,19 @@ def _tab_metrics(df_in: pd.DataFrame) -> None:
     gap_n  = int(df_in["compliance_gaps"].apply(
                  lambda g: isinstance(g, list) and len(g) > 0).sum()) \
              if "compliance_gaps" in df_in.columns else 0
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Total",        len(df_in))
-    m2.metric("🟢 High",      high_n)
-    m3.metric("🔴 With Gaps", gap_n)
+
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("Total",          len(df_in))
+    m2.metric("🟢 High",        high_n)
+    m3.metric("🔴 With Gaps",   gap_n)
+
+    # New: channel breakdown
+    if "channel_type" in df_in.columns:
+        mfg_n  = int((df_in["channel_type"].astype(str) == "Manufacturer").sum())
+        imp_n  = int((df_in["channel_type"].astype(str) == "Importer").sum())
+        m4.metric("🏭 Manufacturers", mfg_n)
+        m5.metric("📦 Importers",     imp_n)
+
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -248,9 +341,9 @@ def _build_more_like_query(seed_row):
 # Page header
 # ---------------------------------------------------------------------------
 st.title("🌐 Global B2B Lead Discovery Engine")
-st.caption("Background search · Live results · Compliance gap detection")
+st.caption("Background search · Enriched profiles · Compliance gap detection")
 
-# Backend connection status — shows exact URL being used
+# Backend connection status
 with st.expander("🔌 Backend Connection", expanded=False):
     st.code(f"Backend URL: {API}", language=None)
     try:
@@ -258,7 +351,7 @@ with st.expander("🔌 Backend Connection", expanded=False):
         if ping.status_code == 200:
             st.success(f"✅ Connected — {ping.json().get('service','')}")
             try:
-                prov = requests.get(f"{API}/llm/provider", timeout=5).json()
+                prov   = requests.get(f"{API}/llm/provider", timeout=5).json()
                 pname  = prov.get("provider","none").upper()
                 pmodel = prov.get("model","—")
                 if prov.get("status") == "active":
@@ -273,12 +366,8 @@ with st.expander("🔌 Backend Connection", expanded=False):
         st.error(f"❌ Cannot reach backend: {e}")
         st.markdown(f"""
         **Troubleshooting:**
-        - Backend URL being used: `{API}`
-        - If this shows `127.0.0.1` you haven't set `BACKEND_URL` in Streamlit secrets
-        - Go to Streamlit Cloud → your app → ⋮ → Settings → Secrets and add:
-        ```
-        BACKEND_URL = "https://your-app.onrender.com"
-        ```
+        - Backend URL: `{API}`
+        - Set `BACKEND_URL` in Streamlit secrets if deploying to cloud.
         """)
 
 # ---------------------------------------------------------------------------
@@ -346,7 +435,7 @@ with col3:
 
 # Compliance enrichment
 with st.expander("🔬 Run Compliance Checks on Saved Leads", expanded=False):
-    st.caption("Compliance checks (BIS · GST · DGFT · MCA) run separately so search stays fast.")
+    st.caption("Compliance checks (BIS · GST · DGFT · MCA) also update incorporation date and company type.")
     enrich_limit = st.slider("Max leads to check", 10, 200, 50, key="enrich_limit")
     if st.button("▶️ Start Compliance Checks", key="enrich_btn"):
         try:
@@ -357,7 +446,7 @@ with st.expander("🔬 Run Compliance Checks on Saved Leads", expanded=False):
                 timeout=300,
             )
             if r.status_code == 200:
-                st.success(f"Done — {r.json().get('checked', 0)} leads checked. Refresh to see gaps.")
+                st.success(f"Done — {r.json().get('checked', 0)} leads checked. Refresh to see results.")
             else:
                 st.error("Compliance check failed")
         except Exception as e:
@@ -402,17 +491,21 @@ if st.session_state.active_job_id:
         company_live = [x for x in st.session_state.live_results
                         if x.get("source") != "linkedin_semantic"]
 
-        high_n   = sum(1 for x in company_live if str(x.get("importance","")).lower()=="high")
-        medium_n = sum(1 for x in company_live if str(x.get("importance","")).lower()=="medium")
-        gap_n    = sum(1 for x in company_live
-                       if isinstance(x.get("compliance_gaps"), list)
-                       and len(x["compliance_gaps"]) > 0)
+        high_n    = sum(1 for x in company_live if str(x.get("importance","")).lower()=="high")
+        medium_n  = sum(1 for x in company_live if str(x.get("importance","")).lower()=="medium")
+        gap_n     = sum(1 for x in company_live
+                        if isinstance(x.get("compliance_gaps"), list)
+                        and len(x["compliance_gaps"]) > 0)
+        mfg_n     = sum(1 for x in company_live if x.get("channel_type") == "Manufacturer")
+        imp_n     = sum(1 for x in company_live if x.get("channel_type") == "Importer")
 
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Results",     len(company_live))
-        c2.metric("🟢 High",     high_n)
-        c3.metric("🟡 Medium",   medium_n)
-        c4.metric("🔴 Has Gaps", gap_n)
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
+        c1.metric("Results",         len(company_live))
+        c2.metric("🟢 High",         high_n)
+        c3.metric("🟡 Medium",        medium_n)
+        c4.metric("🔴 Has Gaps",      gap_n)
+        c5.metric("🏭 Manufacturers", mfg_n)
+        c6.metric("📦 Importers",     imp_n)
 
         st.caption(
             f"Status: **{status.get('status','—')}** | "
@@ -524,6 +617,7 @@ except Exception as e:
     st.markdown(f"**URL being called:** `{API}/leads`")
     st.stop()
 
+# Compliance gap summary
 try:
     gp = {}
     if country_filter.strip():
@@ -538,6 +632,27 @@ if gap_summ:
     gcols = st.columns(min(len(gap_summ), 5) or 1)
     for i, (gc, cnt) in enumerate(gap_summ.items()):
         gcols[i % len(gcols)].metric(GAP_LABELS.get(gc, gc), cnt)
+
+# Channel type summary
+try:
+    cp = {}
+    if country_filter.strip():
+        cp["country_filter"] = country_filter.strip().lower()
+    cr           = requests.get(f"{API}/leads/channel-summary", params=cp, timeout=10)
+    channel_summ = cr.json() if cr.status_code == 200 else {}
+except Exception:
+    channel_summ = {}
+
+if channel_summ:
+    st.markdown("##### Channel Type Breakdown")
+    ch_icons = {
+        "Manufacturer": "🏭", "Importer": "📦", "Trader": "🤝",
+        "Wholesaler": "🏢", "Distributor": "🚚", "Retailer": "🛍️",
+    }
+    ccols = st.columns(min(len(channel_summ), 6) or 1)
+    for i, (ch, cnt) in enumerate(channel_summ.items()):
+        icon = ch_icons.get(ch, "")
+        ccols[i % len(ccols)].metric(f"{icon} {ch}", cnt)
 
 if data:
     df = pd.DataFrame(data)
@@ -559,9 +674,18 @@ if data:
         return df_in[df_in["compliance_gaps"].apply(
             lambda g: isinstance(g, list) and len(g) > 0)].copy()
 
-    tab_all, tab_gaps, tab_no_bis, tab_no_iec, tab_no_gst = st.tabs([
+    def _filter_channel(df_in, channel):
+        if "channel_type" not in df_in.columns:
+            return pd.DataFrame()
+        return df_in[df_in["channel_type"].astype(str) == channel].copy()
+
+    (tab_all, tab_gaps, tab_mfg, tab_imp, tab_trade,
+     tab_no_bis, tab_no_iec, tab_no_gst) = st.tabs([
         "📋 All Leads",
         "🎯 Compliance Gaps",
+        "🏭 Manufacturers",
+        "📦 Importers",
+        "🤝 Traders / Dist.",
         "🔴 No BIS",
         "📦 No IEC",
         "🧾 No GST",
@@ -576,6 +700,29 @@ if data:
         gdf = _filter_any_gap(company_df)
         _tab_metrics(gdf)
         _show_table(gdf, key_suffix="gaps")
+
+    with tab_mfg:
+        st.info("🏭 Manufacturers — companies that produce goods themselves.")
+        mdf = _filter_channel(company_df, "Manufacturer")
+        _tab_metrics(mdf)
+        _show_table(mdf, key_suffix="manufacturer")
+
+    with tab_imp:
+        st.info("📦 Importers — companies that bring goods from overseas.")
+        idf = _filter_channel(company_df, "Importer")
+        _tab_metrics(idf)
+        _show_table(idf, key_suffix="importer")
+
+    with tab_trade:
+        st.info("🤝 Traders, Distributors, Wholesalers, Retailers.")
+        tdf = pd.concat([
+            _filter_channel(company_df, "Trader"),
+            _filter_channel(company_df, "Distributor"),
+            _filter_channel(company_df, "Wholesaler"),
+            _filter_channel(company_df, "Retailer"),
+        ], ignore_index=True) if not company_df.empty else pd.DataFrame()
+        _tab_metrics(tdf)
+        _show_table(tdf, key_suffix="traders")
 
     with tab_no_bis:
         st.info("🔴 No BIS licence — cannot legally sell regulated products in India.")
