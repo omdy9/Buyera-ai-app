@@ -1,3 +1,6 @@
+"""
+database.py — MongoDB collections
+"""
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
@@ -7,14 +10,16 @@ load_dotenv()
 MONGO_URI = os.getenv("MONGO_URI")
 
 client = MongoClient(MONGO_URI)
+db     = client["buyera_ai"]
 
-db = client["buyera_ai"]
-
-leads_collection = db["leads"]
+# Collections
+leads_collection        = db["leads"]
 search_state_collection = db["search_state"]
+users_collection        = db["users"]          # NEW
 
-# indexes
+# Core indexes
 leads_collection.create_index("company")
 leads_collection.create_index("website")
-leads_collection.create_index("industry")
-leads_collection.create_index("country")
+leads_collection.create_index("user_id")        # NEW — per-user isolation
+users_collection.create_index("username", unique=True)
+users_collection.create_index("user_id",  unique=True)
