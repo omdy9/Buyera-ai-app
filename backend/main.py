@@ -1,16 +1,17 @@
 """
-backend/main.py  –  v2 (enriched company profile edition)
-==========================================================
+backend/main.py  –  v3  (per-user lead isolation)
+==================================================
 
-New fields stored per lead:
-  city, country_detected, linkedin_url, incorporation_date,
-  company_size, channel_type, contact_person, contact_email,
-  active_website, industry_detected, product_type, mca_company_type
+Every lead is now stamped with user_id on write and filtered by user_id on read.
+Anonymous access still works (user_id = "anonymous") so existing deployments
+don't break immediately, but the UI always sends a token after login.
 
-New API endpoints:
-  GET /leads/by-channel?channel=Manufacturer
-  GET /leads/by-industry?industry=Electronics
-  GET /leads/profile/{lead_id}   — full single-lead profile
+New endpoints
+-------------
+POST /auth/register   {username, password, email?}  → {user_id, username, token}
+POST /auth/login      {username, password}           → {user_id, username, token}
+GET  /auth/me         (requires X-User-Token)        → {user_id, username, role}
+DELETE /clear         now only deletes the current user's leads (admin deletes all)
 """
 
 from datetime import datetime
@@ -19,26 +20,51 @@ import threading
 import uuid
 import logging
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Header
+from pydantic import BaseModel
 
 if __package__:
     from .database import leads_collection, search_state_collection
     from .nlp import extract_fields, score_match, semantic_similarity
     from .scraper_google import google_search, linkedin_discovery
+    from .auth import (
+        register_user, login_user, get_current_user,
+        get_optional_user, create_token,
+    )
 else:
     from database import leads_collection, search_state_collection
     from nlp import extract_fields, score_match, semantic_similarity
     from scraper_google import google_search, linkedin_discovery
+    from auth import (
+        register_user, login_user, get_current_user,
+        get_optional_user, create_token,
+    )
 
 app = FastAPI(title="Global B2B Lead Discovery API")
 logger = logging.getLogger("uvicorn.error")
 
-DEFAULT_BATCH_RESULTS     = 10
+DEFAULT_BATCH_RESULTS        = 10
 MAX_SEARCH_PAGES_PER_REQUEST = 100
-MAX_JOBS_IN_MEMORY        = 200
+MAX_JOBS_IN_MEMORY           = 200
 
 SEARCH_JOBS: dict = {}
 SEARCH_JOBS_LOCK  = threading.Lock()
+
+ANONYMOUS = "anonymous"   # fallback user_id when no token provided
+
+
+# ---------------------------------------------------------------------------
+# Pydantic request bodies
+# ---------------------------------------------------------------------------
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    email:    str = ""
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
 
 
 # ---------------------------------------------------------------------------
@@ -48,14 +74,14 @@ SEARCH_JOBS_LOCK  = threading.Lock()
 @app.on_event("startup")
 def ensure_indexes():
     try:
-        leads_collection.create_index([("searched_query", 1), ("created_at", -1)])
-        leads_collection.create_index([("website", 1)])
+        leads_collection.create_index([("user_id", 1), ("searched_query", 1), ("created_at", -1)])
+        leads_collection.create_index([("user_id", 1), ("website", 1)])
+        leads_collection.create_index([("user_id", 1), ("final_score", -1)])
         leads_collection.create_index([("search_job_id", 1), ("result_index", 1)])
-        leads_collection.create_index([("country_filter", 1), ("final_score", -1)])
-        leads_collection.create_index([("channel_type", 1)])
-        leads_collection.create_index([("industry_detected", 1)])
-        leads_collection.create_index([("city", 1)])
-        search_state_collection.create_index([("query", 1)], unique=True)
+        leads_collection.create_index([("user_id", 1), ("channel_type", 1)])
+        leads_collection.create_index([("user_id", 1), ("industry_detected", 1)])
+        leads_collection.create_index([("user_id", 1), ("city", 1)])
+        search_state_collection.create_index([("user_id", 1), ("query", 1)], unique=True)
         logger.info("MongoDB indexes ensured.")
     except Exception as exc:
         logger.warning("Index creation skipped: %s", exc)
@@ -72,19 +98,22 @@ def _domain_from_url(url: str) -> str:
         return ""
 
 
-def _state_key(query: str, country_filter: str = "", trusted_only: bool = False) -> str:
+def _state_key(query: str, country_filter: str = "",
+               trusted_only: bool = False, user_id: str = "") -> str:
     return (
-        f"{query.strip().lower()}"
+        f"{user_id}|{query.strip().lower()}"
         f"|country={country_filter.strip().lower()}"
         f"|trusted={bool(trusted_only)}"
     )
 
 
-def _existing_domains_for_query(query: str, country_filter: str = "") -> set:
+def _existing_domains_for_query(query: str, country_filter: str = "",
+                                user_id: str = ANONYMOUS) -> set:
     domains: set = set()
     filters: dict = {
+        "user_id":        user_id,
         "searched_query": query,
-        "website": {"$exists": True, "$ne": ""},
+        "website":        {"$exists": True, "$ne": ""},
     }
     if country_filter:
         filters["country_filter"] = country_filter.strip().lower()
@@ -95,19 +124,19 @@ def _existing_domains_for_query(query: str, country_filter: str = "") -> set:
     return domains
 
 
-def _read_search_state(query: str) -> dict:
-    state = search_state_collection.find_one({"query": query}, {"_id": 0})
+def _read_search_state(state_key: str) -> dict:
+    state = search_state_collection.find_one({"state_key": state_key}, {"_id": 0})
     if not state:
         return {"next_start": 0, "has_more": True}
     return {"next_start": int(state.get("next_start", 0)),
             "has_more":   bool(state.get("has_more", True))}
 
 
-def _write_search_state(query: str, next_start: int, has_more: bool) -> None:
+def _write_search_state(state_key: str, next_start: int, has_more: bool) -> None:
     search_state_collection.update_one(
-        {"query": query},
+        {"state_key": state_key},
         {"$set": {
-            "query":      query,
+            "state_key":  state_key,
             "next_start": int(next_start),
             "has_more":   bool(has_more),
             "updated_at": datetime.utcnow(),
@@ -154,6 +183,7 @@ def _evict_old_jobs() -> None:
 # ---------------------------------------------------------------------------
 
 def _build_lead_doc(c: dict, query: str, country_filter: str,
+                    user_id: str = ANONYMOUS,
                     search_job_id: str | None = None) -> dict:
     """Convert a scored company dict into the full MongoDB lead document."""
 
@@ -170,16 +200,16 @@ def _build_lead_doc(c: dict, query: str, country_filter: str,
 
     compliance      = c.get("compliance", {})
     compliance_gaps = compliance.get("compliance_gaps", [])
-
-    # MCA may provide incorporation_date
-    mca = compliance.get("mca", {})
+    mca             = compliance.get("mca", {})
     incorporation_date = (
-        c.get("incorporation_date", "") or
-        mca.get("incorporation_date", "")
+        c.get("incorporation_date", "") or mca.get("incorporation_date", "")
     )
     company_type_mca = mca.get("company_type", "")
 
     doc = {
+        # --- Ownership (NEW) ---
+        "user_id":            user_id,
+
         # --- Identity ---
         "company":            c.get("company", ""),
         "website":            c.get("website", ""),
@@ -227,11 +257,11 @@ def _build_lead_doc(c: dict, query: str, country_filter: str,
         "bis_certified":      compliance.get("bis",  {}).get("certified",  None),
         "gst_registered":     compliance.get("gst",  {}).get("registered", None),
         "iec_found":          compliance.get("dgft", {}).get("iec_found",  None),
-        "mca_active":         compliance.get("mca",  {}).get("active",     None),
-        "bis_detail":         compliance.get("bis",  {}).get("detail",     ""),
-        "gst_detail":         compliance.get("gst",  {}).get("detail",     ""),
-        "dgft_detail":        compliance.get("dgft", {}).get("detail",     ""),
-        "mca_detail":         compliance.get("mca",  {}).get("detail",     ""),
+        "mca_active":         mca.get("active", None),
+        "bis_detail":         compliance.get("bis",  {}).get("detail", ""),
+        "gst_detail":         compliance.get("gst",  {}).get("detail", ""),
+        "dgft_detail":        compliance.get("dgft", {}).get("detail", ""),
+        "mca_detail":         mca.get("detail", ""),
         "compliance_checked": any(
             v.get("checked") for v in [
                 compliance.get("bis",  {}),
@@ -258,34 +288,31 @@ def _run_discovery(
     search_job_id: str | None = None,
     country_filter: str = "",
     trusted_only: bool = False,
+    user_id: str = ANONYMOUS,
 ) -> dict:
     query          = query.strip()
     country_filter = (country_filter or "").strip().lower()
-    state_key      = _state_key(query, country_filter=country_filter, trusted_only=trusted_only)
+    sk             = _state_key(query, country_filter, trusted_only, user_id)
 
     if not query:
-        return {
-            "saved": 0, "linkedin_saved": 0, "saved_total": 0,
-            "has_more": False, "next_start": 0, "pages_scanned": 0,
-        }
+        return {"saved": 0, "linkedin_saved": 0, "saved_total": 0,
+                "has_more": False, "next_start": 0, "pages_scanned": 0}
 
     if continue_search:
-        state      = _read_search_state(state_key)
+        state      = _read_search_state(sk)
         next_start = state["next_start"]
         has_more   = state["has_more"]
     else:
         next_start = 0
         has_more   = True
-        _write_search_state(state_key, next_start=0, has_more=True)
+        _write_search_state(sk, next_start=0, has_more=True)
 
     if continue_search and not has_more:
-        return {
-            "saved": 0, "linkedin_saved": 0, "saved_total": 0,
-            "has_more": False, "next_start": next_start, "pages_scanned": 0,
-            "message": "No more pages left for this query.",
-        }
+        return {"saved": 0, "linkedin_saved": 0, "saved_total": 0,
+                "has_more": False, "next_start": next_start, "pages_scanned": 0,
+                "message": "No more pages left for this query."}
 
-    known_domains  = _existing_domains_for_query(query, country_filter=country_filter)
+    known_domains  = _existing_domains_for_query(query, country_filter, user_id)
     saved          = 0
     pages_scanned  = 0
     linkedin_saved = 0
@@ -294,8 +321,7 @@ def _run_discovery(
     while has_more and (scan_all_remaining or saved < DEFAULT_BATCH_RESULTS):
         want   = DEFAULT_BATCH_RESULTS if scan_all_remaining else (DEFAULT_BATCH_RESULTS - saved)
         result = google_search(
-            query,
-            max_results=want, start=next_start,
+            query, max_results=want, start=next_start,
             exclude_domains=known_domains, max_pages=1,
             country_filter=country_filter, trusted_only=trusted_only,
         )
@@ -311,7 +337,7 @@ def _run_discovery(
 
         lead_docs = []
         for c in companies:
-            lead_doc = _build_lead_doc(c, query, country_filter, search_job_id)
+            lead_doc = _build_lead_doc(c, query, country_filter, user_id, search_job_id)
             lead_docs.append(lead_doc)
             saved += 1
             domain = c.get("domain", "") or _domain_from_url(c.get("website", ""))
@@ -321,20 +347,21 @@ def _run_discovery(
         if lead_docs:
             leads_collection.insert_many(lead_docs)
             if search_job_id:
-                for lead_doc in lead_docs:
-                    _append_job_result(search_job_id, lead_doc)
+                for ld in lead_docs:
+                    _append_job_result(search_job_id, ld)
 
         guard += 1
         if guard >= MAX_SEARCH_PAGES_PER_REQUEST:
             has_more = False
             break
 
-    # LinkedIn (fresh searches only)
+    # LinkedIn
     if not continue_search:
         people = linkedin_discovery(query, country_filter=country_filter)
         linkedin_docs = []
         for p in people:
-            lead_doc = {
+            ld = {
+                "user_id":        user_id,
                 "name":           p.get("name", ""),
                 "profile":        p.get("profile", ""),
                 "snippet":        p.get("snippet", ""),
@@ -344,48 +371,72 @@ def _run_discovery(
                 "created_at":     datetime.utcnow(),
             }
             if search_job_id:
-                lead_doc["search_job_id"] = search_job_id
-            linkedin_docs.append(lead_doc)
+                ld["search_job_id"] = search_job_id
+            linkedin_docs.append(ld)
             linkedin_saved += 1
 
         if linkedin_docs:
             leads_collection.insert_many(linkedin_docs)
             if search_job_id:
-                for lead_doc in linkedin_docs:
-                    _append_job_result(search_job_id, lead_doc)
+                for ld in linkedin_docs:
+                    _append_job_result(search_job_id, ld)
 
-    _write_search_state(state_key, next_start=next_start, has_more=has_more)
+    _write_search_state(sk, next_start=next_start, has_more=has_more)
 
     return {
-        "saved":              saved,
-        "linkedin_saved":     linkedin_saved,
-        "saved_total":        saved + linkedin_saved,
-        "has_more":           has_more,
-        "next_start":         next_start,
-        "pages_scanned":      pages_scanned,
-        "continue_search":    continue_search,
+        "saved": saved, "linkedin_saved": linkedin_saved,
+        "saved_total": saved + linkedin_saved,
+        "has_more": has_more, "next_start": next_start,
+        "pages_scanned": pages_scanned,
+        "continue_search": continue_search,
         "scan_all_remaining": scan_all_remaining,
-        "country_filter":     country_filter,
-        "trusted_only":       trusted_only,
+        "country_filter": country_filter, "trusted_only": trusted_only,
     }
 
 
-def _run_discovery_job(
-    job_id: str, query: str, continue_search: bool,
-    scan_all_remaining: bool, country_filter: str, trusted_only: bool,
-) -> None:
+def _run_discovery_job(job_id: str, query: str, continue_search: bool,
+                       scan_all_remaining: bool, country_filter: str,
+                       trusted_only: bool, user_id: str) -> None:
     _upsert_job(job_id, status="running", started_at=datetime.utcnow())
     try:
         result = _run_discovery(
             query=query, continue_search=continue_search,
             scan_all_remaining=scan_all_remaining, search_job_id=job_id,
             country_filter=country_filter, trusted_only=trusted_only,
+            user_id=user_id,
         )
         _upsert_job(job_id, status="completed", finished_at=datetime.utcnow(), **result)
-        logger.info("Job %s completed: saved=%s", job_id, result.get("saved_total"))
+        logger.info("Job %s (user=%s) completed: saved=%s", job_id, user_id, result.get("saved_total"))
     except Exception as exc:
         logger.exception("Job %s failed: %s", job_id, exc)
         _upsert_job(job_id, status="failed", finished_at=datetime.utcnow(), error=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Auth routes
+# ---------------------------------------------------------------------------
+
+@app.post("/auth/register")
+def auth_register(body: RegisterRequest):
+    try:
+        user = register_user(body.username, body.password, body.email)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    token = create_token(user["user_id"])
+    return {**user, "token": token}
+
+
+@app.post("/auth/login")
+def auth_login(body: LoginRequest):
+    try:
+        return login_user(body.username, body.password)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+
+@app.get("/auth/me")
+def auth_me(user: dict = Depends(get_current_user)):
+    return user
 
 
 # ---------------------------------------------------------------------------
@@ -406,19 +457,6 @@ def llm_provider_info():
     return get_active_provider()
 
 
-@app.post("/add_lead")
-def add_lead(text: str, service_focus: str = "marketing"):
-    service, country, urgency, budget = extract_fields(text)
-    match_score = score_match(text, service_focus)
-    lead = {
-        "text": text, "service": service, "country": country,
-        "urgency": urgency, "budget": budget if budget else 0,
-        "score": match_score, "source": "manual", "created_at": datetime.utcnow(),
-    }
-    leads_collection.insert_one(lead)
-    return {"status": "added"}
-
-
 # ---- Background search ----
 
 @app.post("/search/start")
@@ -428,16 +466,19 @@ def start_search(
     scan_all_remaining: bool = False,
     country_filter: str = "",
     trusted_only: bool = False,
+    user: dict = Depends(get_current_user),
 ):
     query = query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="query is required")
     country_filter = (country_filter or "").strip().lower()
+    user_id = user["user_id"]
     _evict_old_jobs()
 
     job_id = uuid.uuid4().hex
     job = {
         "job_id": job_id, "query": query, "status": "queued",
+        "user_id": user_id,
         "continue_search": continue_search, "scan_all_remaining": scan_all_remaining,
         "country_filter": country_filter, "trusted_only": trusted_only,
         "created_at": datetime.utcnow(), "started_at": None, "finished_at": None,
@@ -450,23 +491,24 @@ def start_search(
 
     worker = threading.Thread(
         target=_run_discovery_job,
-        args=(job_id, query, continue_search, scan_all_remaining, country_filter, trusted_only),
+        args=(job_id, query, continue_search, scan_all_remaining,
+              country_filter, trusted_only, user_id),
         daemon=True,
     )
     worker.start()
-    return {
-        "job_id": job_id, "status": "started", "query": query,
-        "continue_search": continue_search, "scan_all_remaining": scan_all_remaining,
-        "country_filter": country_filter, "trusted_only": trusted_only,
-    }
+    return {"job_id": job_id, "status": "started", "query": query,
+            "continue_search": continue_search, "country_filter": country_filter}
 
 
 @app.get("/search/status/{job_id}")
-def search_status(job_id: str):
+def search_status(job_id: str, user: dict = Depends(get_current_user)):
     with SEARCH_JOBS_LOCK:
         job = SEARCH_JOBS.get(job_id)
         if not job:
             raise HTTPException(status_code=404, detail="job not found")
+        # Users can only see their own jobs
+        if job.get("user_id") != user["user_id"] and user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="access denied")
         payload = {k: v for k, v in job.items() if k != "results"}
         payload["results_count"] = len(job["results"])
     payload["ask_continue"] = bool(
@@ -476,32 +518,34 @@ def search_status(job_id: str):
 
 
 @app.get("/search/results/{job_id}")
-def search_results(job_id: str, since: int = 0):
+def search_results(job_id: str, since: int = 0,
+                   user: dict = Depends(get_current_user)):
     with SEARCH_JOBS_LOCK:
         job = SEARCH_JOBS.get(job_id)
         if not job:
             raise HTTPException(status_code=404, detail="job not found")
+        if job.get("user_id") != user["user_id"] and user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="access denied")
         total     = len(job["results"])
         start_idx = max(0, min(int(since), total))
         items     = job["results"][start_idx:]
-    return {
-        "job_id": job_id, "results": items,
-        "next_since": start_idx + len(items), "total": total,
-    }
+    return {"job_id": job_id, "results": items,
+            "next_since": start_idx + len(items), "total": total}
 
 
 @app.get("/search/more-like-this/{job_id}")
-def search_more_like_this(job_id: str, result_index: int, limit: int = 5):
+def search_more_like_this(job_id: str, result_index: int, limit: int = 5,
+                          user: dict = Depends(get_current_user)):
     with SEARCH_JOBS_LOCK:
         job = SEARCH_JOBS.get(job_id)
         if not job:
             raise HTTPException(status_code=404, detail="job not found")
+        if job.get("user_id") != user["user_id"] and user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="access denied")
         results = list(job.get("results", []))
 
     seed = next(
-        (r for r in results if int(r.get("result_index", -1)) == int(result_index)),
-        None,
-    )
+        (r for r in results if int(r.get("result_index", -1)) == int(result_index)), None)
     if not seed:
         raise HTTPException(status_code=404, detail="seed result not found")
 
@@ -528,26 +572,33 @@ def search_more_like_this(job_id: str, result_index: int, limit: int = 5):
         scored.append(item)
 
     scored.sort(key=lambda x: x.get("more_like_this_score", 0), reverse=True)
-    return {
-        "job_id": job_id, "seed_result_index": int(result_index),
-        "results": scored[: max(1, min(int(limit), 20))],
-    }
+    return {"job_id": job_id, "seed_result_index": int(result_index),
+            "results": scored[: max(1, min(int(limit), 20))]}
 
 
-# ---- Leads read ----
+# ---- Leads read — ALL filtered by user_id ----
+
+def _user_base_filter(user: dict, country_filter: str = "") -> dict:
+    """Base MongoDB filter that scopes results to the current user."""
+    f: dict = {}
+    if user.get("role") != "admin":
+        f["user_id"] = user["user_id"]
+    if country_filter:
+        f["country_filter"] = country_filter.strip().lower()
+    return f
+
 
 @app.get("/leads")
 def get_leads(
     query: str = "", source: str = "", country_filter: str = "",
     min_score: float = 0.0, skip: int = 0, limit: int = 1000,
+    user: dict = Depends(get_current_user),
 ):
-    filters: dict = {}
+    filters = _user_base_filter(user, country_filter)
     if query:
         filters["searched_query"] = query
     if source:
         filters["source"] = source
-    if country_filter:
-        filters["country_filter"] = country_filter.strip().lower()
     if min_score > 0:
         filters["final_score"] = {"$gte": float(min_score)}
 
@@ -560,36 +611,19 @@ def get_leads(
     return list(cursor)
 
 
-@app.get("/leads/profile/{website_b64}")
-def get_lead_profile(website_b64: str):
-    """Get full profile for a single lead by base64-encoded website URL."""
-    import base64
-    try:
-        website = base64.urlsafe_b64decode(website_b64.encode()).decode()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid website encoding")
-    lead = leads_collection.find_one({"website": website}, {"_id": 0})
-    if not lead:
-        raise HTTPException(status_code=404, detail="Lead not found")
-    return lead
-
-
 @app.get("/leads/by-channel")
 def leads_by_channel(
-    channel: str,
-    country_filter: str = "",
-    min_score: float = 0.0,
-    limit: int = 500,
+    channel: str, country_filter: str = "",
+    min_score: float = 0.0, limit: int = 500,
+    user: dict = Depends(get_current_user),
 ):
-    """Filter leads by channel type: Manufacturer / Importer / Trader / etc."""
     valid = {"Manufacturer", "Importer", "Trader", "Wholesaler", "Distributor", "Retailer"}
     channel = channel.strip().title()
     if channel not in valid:
-        raise HTTPException(status_code=400,
-                            detail=f"channel must be one of {sorted(valid)}")
-    filters: dict = {"channel_type": channel, "source": {"$ne": "linkedin_semantic"}}
-    if country_filter:
-        filters["country_filter"] = country_filter.strip().lower()
+        raise HTTPException(status_code=400, detail=f"channel must be one of {sorted(valid)}")
+    filters = _user_base_filter(user, country_filter)
+    filters["channel_type"] = channel
+    filters["source"]       = {"$ne": "linkedin_semantic"}
     if min_score > 0:
         filters["final_score"] = {"$gte": float(min_score)}
     cursor = (
@@ -602,18 +636,13 @@ def leads_by_channel(
 
 @app.get("/leads/by-industry")
 def leads_by_industry(
-    industry: str,
-    country_filter: str = "",
-    min_score: float = 0.0,
-    limit: int = 500,
+    industry: str, country_filter: str = "",
+    min_score: float = 0.0, limit: int = 500,
+    user: dict = Depends(get_current_user),
 ):
-    """Filter leads by detected industry."""
-    filters: dict = {
-        "industry_detected": {"$regex": industry.strip(), "$options": "i"},
-        "source": {"$ne": "linkedin_semantic"},
-    }
-    if country_filter:
-        filters["country_filter"] = country_filter.strip().lower()
+    filters = _user_base_filter(user, country_filter)
+    filters["industry_detected"] = {"$regex": industry.strip(), "$options": "i"}
+    filters["source"]            = {"$ne": "linkedin_semantic"}
     if min_score > 0:
         filters["final_score"] = {"$gte": float(min_score)}
     cursor = (
@@ -625,14 +654,13 @@ def leads_by_industry(
 
 
 @app.get("/leads/channel-summary")
-def channel_summary(country_filter: str = ""):
-    """Returns counts by channel_type."""
-    filters: dict = {"source": {"$ne": "linkedin_semantic"}}
-    if country_filter:
-        filters["country_filter"] = country_filter.strip().lower()
+def channel_summary(country_filter: str = "",
+                    user: dict = Depends(get_current_user)):
+    filters = _user_base_filter(user, country_filter)
+    filters["source"]       = {"$ne": "linkedin_semantic"}
+    filters["channel_type"] = {"$nin": ["", None]}
     pipeline = [
         {"$match": filters},
-        {"$match": {"channel_type": {"$nin": ["", None]}}},
         {"$group": {"_id": "$channel_type", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
     ]
@@ -640,22 +668,20 @@ def channel_summary(country_filter: str = ""):
     return {r["_id"]: r["count"] for r in rows}
 
 
-# ---- Compliance endpoints ----
-
 @app.post("/leads/enrich-compliance")
-def enrich_compliance_background(limit: int = 50, country_filter: str = ""):
+def enrich_compliance_background(
+    limit: int = 50, country_filter: str = "",
+    user: dict = Depends(get_current_user),
+):
     try:
         from cert_checker import check_company_compliance
     except ImportError:
         from .cert_checker import check_company_compliance
 
-    filters: dict = {
-        "source":             {"$ne": "linkedin_semantic"},
-        "compliance_checked": {"$ne": True},
-        "company":            {"$exists": True, "$ne": ""},
-    }
-    if country_filter:
-        filters["country_filter"] = country_filter.strip().lower()
+    filters = _user_base_filter(user, country_filter)
+    filters["source"]             = {"$ne": "linkedin_semantic"}
+    filters["compliance_checked"] = {"$ne": True}
+    filters["company"]            = {"$exists": True, "$ne": ""}
 
     leads = list(
         leads_collection.find(filters, {"_id": 1, "company": 1, "website": 1})
@@ -698,16 +724,14 @@ def get_leads_with_gaps(
     gap: str = "", country_filter: str = "",
     min_score: float = 0.0, importance: str = "",
     skip: int = 0, limit: int = 1000,
+    user: dict = Depends(get_current_user),
 ):
-    filters: dict = {
-        "source":             {"$ne": "linkedin_semantic"},
-        "compliance_checked": True,
-        "compliance_gaps":    {"$exists": True, "$not": {"$size": 0}},
-    }
+    filters = _user_base_filter(user, country_filter)
+    filters["source"]             = {"$ne": "linkedin_semantic"}
+    filters["compliance_checked"] = True
+    filters["compliance_gaps"]    = {"$exists": True, "$not": {"$size": 0}}
     if gap:
         filters["compliance_gaps"] = gap.strip()
-    if country_filter:
-        filters["country_filter"] = country_filter.strip().lower()
     if min_score > 0:
         filters["final_score"] = {"$gte": float(min_score)}
     if importance:
@@ -723,10 +747,11 @@ def get_leads_with_gaps(
 
 
 @app.get("/leads/gap-summary")
-def gap_summary(country_filter: str = ""):
-    filters: dict = {"source": {"$ne": "linkedin_semantic"}, "compliance_checked": True}
-    if country_filter:
-        filters["country_filter"] = country_filter.strip().lower()
+def gap_summary(country_filter: str = "",
+                user: dict = Depends(get_current_user)):
+    filters = _user_base_filter(user, country_filter)
+    filters["source"]             = {"$ne": "linkedin_semantic"}
+    filters["compliance_checked"] = True
     pipeline = [
         {"$match": filters},
         {"$unwind": {"path": "$compliance_gaps", "preserveNullAndEmptyArrays": False}},
@@ -738,7 +763,7 @@ def gap_summary(country_filter: str = ""):
 
 
 @app.post("/leads/recheck/{lead_id}")
-def recheck_lead(lead_id: str):
+def recheck_lead(lead_id: str, user: dict = Depends(get_current_user)):
     from bson import ObjectId
     try:
         oid = ObjectId(lead_id)
@@ -747,6 +772,9 @@ def recheck_lead(lead_id: str):
     lead = leads_collection.find_one({"_id": oid})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+    if lead.get("user_id") != user["user_id"] and user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="access denied")
+
     try:
         from cert_checker import check_company_compliance
     except ImportError:
@@ -756,7 +784,6 @@ def recheck_lead(lead_id: str):
         lead.get("company", ""), lead.get("website", ""))
     compliance_gaps = compliance.get("compliance_gaps", [])
     mca             = compliance.get("mca", {})
-
     update = {
         "compliance_gaps":    compliance_gaps,
         "compliance_score":   compliance.get("compliance_score", 1.0),
@@ -778,39 +805,21 @@ def recheck_lead(lead_id: str):
 
 # ---- Utilities ----
 
-@app.get("/seed")
-def seed():
-    samples = [
-        {
-            "company": "Zenith Imports LLC", "email": "info@zenithimports.ae",
-            "phone": "+971-4-555111", "final_score": 0.75, "importance": "high",
-            "city": "Dubai", "country_detected": "UAE",
-            "channel_type": "Importer", "company_size": "50-200",
-            "industry_detected": "Electronics", "product_type": "LED Lighting",
-            "incorporation_date": "2015", "linkedin_url": "",
-            "searched_query": "importers in dubai", "source": "seed",
-            "created_at": datetime.utcnow(),
-        },
-        {
-            "company": "Falcon Trading", "email": "sales@falcontrading.ae",
-            "phone": "+971-50-888777", "final_score": 0.65, "importance": "medium",
-            "city": "Dubai", "country_detected": "UAE",
-            "channel_type": "Trader", "company_size": "10-50",
-            "industry_detected": "Textiles", "product_type": "Cotton Fabric",
-            "incorporation_date": "2018", "linkedin_url": "",
-            "searched_query": "importers in dubai", "source": "seed",
-            "created_at": datetime.utcnow(),
-        },
-    ]
-    leads_collection.insert_many(samples)
-    return {"status": "seeded", "count": len(samples)}
-
-
 @app.delete("/clear")
-def clear():
-    leads_collection.delete_many({})
-    search_state_collection.delete_many({})
-    with SEARCH_JOBS_LOCK:
-        SEARCH_JOBS.clear()
-    return {"status": "cleared"}
-  
+def clear(user: dict = Depends(get_current_user)):
+    """Deletes only the current user's leads. Admins delete everything."""
+    if user.get("role") == "admin":
+        leads_collection.delete_many({})
+        search_state_collection.delete_many({})
+        with SEARCH_JOBS_LOCK:
+            SEARCH_JOBS.clear()
+        return {"status": "cleared", "scope": "all"}
+    else:
+        leads_collection.delete_many({"user_id": user["user_id"]})
+        search_state_collection.delete_many({"state_key": {"$regex": f"^{user['user_id']}|"}})
+        with SEARCH_JOBS_LOCK:
+            to_del = [jid for jid, j in SEARCH_JOBS.items()
+                      if j.get("user_id") == user["user_id"]]
+            for jid in to_del:
+                del SEARCH_JOBS[jid]
+        return {"status": "cleared", "scope": user["user_id"]}
