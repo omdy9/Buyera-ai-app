@@ -27,6 +27,109 @@ POLL_SECONDS = 2
 st.set_page_config(page_title="Global B2B Lead Discovery", layout="wide")
 
 # ---------------------------------------------------------------------------
+# Auth helpers
+# ---------------------------------------------------------------------------
+
+def _auth_headers() -> dict:
+    """Return the X-User-Token header dict if logged in, else empty dict."""
+    token = st.session_state.get("auth_token", "")
+    return {"X-User-Token": token} if token else {}
+
+
+def _api_post(path: str, **kwargs) -> requests.Response:
+    return requests.post(f"{API}{path}", headers=_auth_headers(),
+                         timeout=kwargs.pop("timeout", 30), **kwargs)
+
+def _api_get(path: str, **kwargs) -> requests.Response:
+    return requests.get(f"{API}{path}", headers=_auth_headers(),
+                        timeout=kwargs.pop("timeout", 20), **kwargs)
+
+def _api_delete(path: str, **kwargs) -> requests.Response:
+    return requests.delete(f"{API}{path}", headers=_auth_headers(),
+                           timeout=kwargs.pop("timeout", 15), **kwargs)
+
+
+def _show_login_page():
+    """Render the login / register screen. Returns only after successful login."""
+    st.title("🌐 Global B2B Lead Discovery")
+    st.markdown("#### Please log in or create an account to continue.")
+
+    tab_login, tab_register = st.tabs(["🔑 Login", "📝 Register"])
+
+    with tab_login:
+        with st.form("login_form"):
+            uname = st.text_input("Username")
+            pwd   = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Login", use_container_width=True)
+        if submitted:
+            if not uname or not pwd:
+                st.error("Please enter username and password.")
+            else:
+                try:
+                    r = _api_post("/auth/login",
+                        json={"username": uname.strip().lower(), "password": pwd},
+                        timeout=10,
+                    )
+                    if r.status_code == 200:
+                        data = r.json()
+                        st.session_state.auth_token    = data["token"]
+                        st.session_state.auth_user_id  = data["user_id"]
+                        st.session_state.auth_username = data["username"]
+                        st.session_state.auth_role     = data.get("role", "user")
+                        st.rerun()
+                    else:
+                        st.error(r.json().get("detail", "Login failed"))
+                except Exception as e:
+                    st.error(f"Cannot reach backend: {e}")
+
+    with tab_register:
+        with st.form("register_form"):
+            new_user  = st.text_input("Choose a username")
+            new_email = st.text_input("Email (optional)")
+            new_pwd   = st.text_input("Choose a password (min 6 chars)", type="password")
+            new_pwd2  = st.text_input("Confirm password", type="password")
+            reg_submitted = st.form_submit_button("Create Account", use_container_width=True)
+        if reg_submitted:
+            if not new_user or not new_pwd:
+                st.error("Username and password are required.")
+            elif new_pwd != new_pwd2:
+                st.error("Passwords do not match.")
+            elif len(new_pwd) < 6:
+                st.error("Password must be at least 6 characters.")
+            else:
+                try:
+                    r = _api_post("/auth/register",
+                        json={"username": new_user.strip().lower(),
+                              "password": new_pwd, "email": new_email.strip()},
+                        timeout=10,
+                    )
+                    if r.status_code == 200:
+                        data = r.json()
+                        st.session_state.auth_token    = data["token"]
+                        st.session_state.auth_user_id  = data["user_id"]
+                        st.session_state.auth_username = data["username"]
+                        st.session_state.auth_role     = data.get("role", "user")
+                        st.success(f"Account created! Welcome, {data['username']} 🎉")
+                        st.rerun()
+                    else:
+                        st.error(r.json().get("detail", "Registration failed"))
+                except Exception as e:
+                    st.error(f"Cannot reach backend: {e}")
+
+# ---------------------------------------------------------------------------
+# Auth gate — show login page until user is authenticated
+# ---------------------------------------------------------------------------
+if "auth_token" not in st.session_state:
+    st.session_state.auth_token    = ""
+    st.session_state.auth_user_id  = ""
+    st.session_state.auth_username = ""
+    st.session_state.auth_role     = "user"
+
+if not st.session_state.auth_token:
+    _show_login_page()
+    st.stop()   # nothing below runs until logged in
+
+# ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 GAP_LABELS = {
@@ -326,8 +429,7 @@ def _start_background_search(search_query, continue_search=False, reset_results=
     # Build the country_filter string from session state
     cf = "" if st.session_state.sf_country == "Any" else st.session_state.sf_country.lower()
     try:
-        response = requests.post(
-            f"{API}/search/start",
+        response = _api_post("/search/start",
             params={
                 "query":              search_query,
                 "continue_search":    str(continue_search).lower(),
@@ -383,10 +485,20 @@ def _build_more_like_query(seed_row):
 
 
 # ---------------------------------------------------------------------------
-# Page header
+# Page header + logout
 # ---------------------------------------------------------------------------
-st.title("🌐 Global B2B Lead Discovery Engine")
-st.caption("Background search · Enriched profiles · Compliance gap detection")
+hcol1, hcol2 = st.columns([7, 1])
+with hcol1:
+    st.title("🌐 Global B2B Lead Discovery Engine")
+    st.caption(
+        "Background search · Enriched profiles · Compliance gap detection  |  "
+        f"👤 **{st.session_state.auth_username}**"
+    )
+with hcol2:
+    if st.button("🚪 Logout", use_container_width=True):
+        for k in ["auth_token","auth_user_id","auth_username","auth_role"]:
+            st.session_state[k] = ""
+        st.rerun()
 
 # Backend connection status
 with st.expander("🔌 Backend Connection", expanded=False):
@@ -525,7 +637,7 @@ with col3:
 with col4:
     if st.button("🗑️ Clear All Leads", use_container_width=True):
         try:
-            requests.delete(f"{API}/clear", timeout=15)
+            _api_delete("/clear", timeout=15)
             for k, v in _DEFAULTS.items():
                 st.session_state[k] = v
             st.warning("All leads cleared")
@@ -550,8 +662,7 @@ with st.expander("🔬 Run Compliance Checks on Saved Leads", expanded=False):
     enrich_limit = st.slider("Max leads to check", 10, 200, 50, key="enrich_limit")
     if st.button("▶️ Start Compliance Checks", key="enrich_btn"):
         try:
-            r = requests.post(
-                f"{API}/leads/enrich-compliance",
+            r = _api_post("/leads/enrich-compliance",
                 params={"limit": enrich_limit, "country_filter": country_filter},
                 timeout=300,
             )
@@ -572,8 +683,7 @@ if st.session_state.active_job_id:
 
     status = None
     try:
-        sr = requests.get(
-            f"{API}/search/status/{st.session_state.active_job_id}", timeout=20)
+        sr = _api_get("/search/status/{st.session_state.active_job_id}", timeout=20)
         if sr.status_code == 200:
             status = sr.json()
     except Exception as e:
@@ -581,8 +691,7 @@ if st.session_state.active_job_id:
 
     if status:
         try:
-            rr = requests.get(
-                f"{API}/search/results/{st.session_state.active_job_id}",
+            rr = _api_get("/search/results/{st.session_state.active_job_id}",
                 params={"since": st.session_state.live_cursor}, timeout=20)
             if rr.status_code == 200:
                 payload   = rr.json()
@@ -653,8 +762,7 @@ if st.session_state.active_job_id:
                 with b1:
                     if st.button("Find Similar (Current Results)", key="mlt_btn"):
                         try:
-                            resp = requests.get(
-                                f"{API}/search/more-like-this/{st.session_state.active_job_id}",
+                            resp = _api_get("/search/more-like-this/{st.session_state.active_job_id}",
                                 params={"result_index": selected_result_index,
                                         "limit": similar_limit},
                                 timeout=30)
@@ -720,7 +828,7 @@ try:
     lead_params = {"limit": 1000}
     if country_filter:
         lead_params["country_filter"] = country_filter
-    res  = requests.get(f"{API}/leads", params=lead_params, timeout=20)
+    res  = _api_get("/leads", params=lead_params, timeout=20)
     data = res.json()
 except Exception as e:
     st.error(f"Backend not reachable: {e}")
@@ -730,7 +838,7 @@ except Exception as e:
 # Compliance gap summary cards
 try:
     gp = {"country_filter": country_filter} if country_filter else {}
-    gr       = requests.get(f"{API}/leads/gap-summary", params=gp, timeout=10)
+    gr       = _api_get("/leads/gap-summary", params=gp, timeout=10)
     gap_summ = gr.json() if gr.status_code == 200 else {}
 except Exception:
     gap_summ = {}
@@ -744,7 +852,7 @@ if gap_summ:
 # Channel type summary cards
 try:
     cp           = {"country_filter": country_filter} if country_filter else {}
-    cr           = requests.get(f"{API}/leads/channel-summary", params=cp, timeout=10)
+    cr           = _api_get("/leads/channel-summary", params=cp, timeout=10)
     channel_summ = cr.json() if cr.status_code == 200 else {}
 except Exception:
     channel_summ = {}
