@@ -683,7 +683,7 @@ if st.session_state.active_job_id:
 
     status = None
     try:
-        sr = _api_get("/search/status/{st.session_state.active_job_id}", timeout=20)
+        sr = _api_get(f"/search/status/{st.session_state.active_job_id}", timeout=20)
         if sr.status_code == 200:
             status = sr.json()
     except Exception as e:
@@ -691,7 +691,7 @@ if st.session_state.active_job_id:
 
     if status:
         try:
-            rr = _api_get("/search/results/{st.session_state.active_job_id}",
+            rr = _api_get(f"/search/results/{st.session_state.active_job_id}",
                 params={"since": st.session_state.live_cursor}, timeout=20)
             if rr.status_code == 200:
                 payload   = rr.json()
@@ -762,7 +762,7 @@ if st.session_state.active_job_id:
                 with b1:
                     if st.button("Find Similar (Current Results)", key="mlt_btn"):
                         try:
-                            resp = _api_get("/search/more-like-this/{st.session_state.active_job_id}",
+                            resp = _api_get(f"/search/more-like-this/{st.session_state.active_job_id}",
                                 params={"result_index": selected_result_index,
                                         "limit": similar_limit},
                                 timeout=30)
