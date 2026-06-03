@@ -56,35 +56,23 @@ class LoginRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Startup
+# Startup — index maintenance is done in database.py on import
 # ---------------------------------------------------------------------------
 
 @app.on_event("startup")
 def ensure_indexes():
     try:
-        # Drop the bad index that caused E11000 duplicate key errors.
-        # search_state docs are keyed by state_key, not by user_id+query fields.
-        for bad in ["user_id_1_query_1", "query_1"]:
-            try:
-                search_state_collection.drop_index(bad)
-            except Exception:
-                pass
-
-        # Correct unique index for search_state
-        search_state_collection.create_index("state_key", unique=True)
-
-        # Leads indexes
-        leads_collection.create_index([("user_id", 1), ("searched_query", 1), ("created_at", -1)])
+        leads_collection.create_index(
+            [("user_id", 1), ("searched_query", 1), ("created_at", -1)])
         leads_collection.create_index([("user_id", 1), ("website", 1)])
         leads_collection.create_index([("user_id", 1), ("final_score", -1)])
         leads_collection.create_index([("search_job_id", 1), ("result_index", 1)])
         leads_collection.create_index([("user_id", 1), ("channel_type", 1)])
         leads_collection.create_index([("user_id", 1), ("industry_detected", 1)])
         leads_collection.create_index([("user_id", 1), ("city", 1)])
-
-        logger.info("MongoDB indexes ensured.")
+        logger.info("MongoDB lead indexes ensured.")
     except Exception as exc:
-        logger.warning("Index creation skipped: %s", exc)
+        logger.warning("Lead index creation skipped: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -125,14 +113,22 @@ def _existing_domains_for_query(query: str, country_filter: str = "",
 
 
 def _read_search_state(state_key: str) -> dict:
-    state = search_state_collection.find_one({"state_key": state_key}, {"_id": 0})
+    state = search_state_collection.find_one(
+        {"state_key": state_key}, {"_id": 0})
     if not state:
         return {"next_start": 0, "has_more": True}
-    return {"next_start": int(state.get("next_start", 0)),
-            "has_more":   bool(state.get("has_more", True))}
+    return {
+        "next_start": int(state.get("next_start", 0)),
+        "has_more":   bool(state.get("has_more", True)),
+    }
 
 
 def _write_search_state(state_key: str, next_start: int, has_more: bool) -> None:
+    """
+    Upsert by state_key only.  The document intentionally has NO user_id or
+    query field at the top level — those live inside state_key — so the old
+    bad unique index on {user_id, query} can never fire again once dropped.
+    """
     search_state_collection.update_one(
         {"state_key": state_key},
         {"$set": {
@@ -196,9 +192,9 @@ def _build_lead_doc(c: dict, query: str, country_filter: str,
         ]).lower()
         country_match = 1 if country_filter in combined else 0
 
-    compliance      = c.get("compliance", {})
-    compliance_gaps = compliance.get("compliance_gaps", [])
-    mca             = compliance.get("mca", {})
+    compliance       = c.get("compliance", {})
+    compliance_gaps  = compliance.get("compliance_gaps", [])
+    mca              = compliance.get("mca", {})
     incorporation_date = (
         c.get("incorporation_date", "") or mca.get("incorporation_date", "")
     )
@@ -298,7 +294,8 @@ def _run_discovery(
     guard          = 0
 
     while has_more and (scan_all_remaining or saved < DEFAULT_BATCH_RESULTS):
-        want   = DEFAULT_BATCH_RESULTS if scan_all_remaining else (DEFAULT_BATCH_RESULTS - saved)
+        want   = DEFAULT_BATCH_RESULTS if scan_all_remaining \
+                 else (DEFAULT_BATCH_RESULTS - saved)
         result = google_search(
             query, max_results=want, start=next_start,
             exclude_domains=known_domains, max_pages=1,
@@ -310,13 +307,16 @@ def _run_discovery(
         has_more       = bool(result.get("has_more", False))
         pages_scanned += int(result.get("pages_scanned", 0))
 
-        effective_country = (result.get("effective_country", "") or country_filter).strip().lower()
+        effective_country = (
+            result.get("effective_country", "") or country_filter
+        ).strip().lower()
         if not country_filter and effective_country:
             country_filter = effective_country
 
         lead_docs = []
         for c in companies:
-            lead_doc = _build_lead_doc(c, query, country_filter, user_id, search_job_id)
+            lead_doc = _build_lead_doc(
+                c, query, country_filter, user_id, search_job_id)
             lead_docs.append(lead_doc)
             saved += 1
             domain = c.get("domain", "") or _domain_from_url(c.get("website", ""))
@@ -336,7 +336,7 @@ def _run_discovery(
 
     # LinkedIn
     if not continue_search:
-        people = linkedin_discovery(query, country_filter=country_filter)
+        people        = linkedin_discovery(query, country_filter=country_filter)
         linkedin_docs = []
         for p in people:
             ld = {
@@ -363,13 +363,16 @@ def _run_discovery(
     _write_search_state(sk, next_start=next_start, has_more=has_more)
 
     return {
-        "saved": saved, "linkedin_saved": linkedin_saved,
-        "saved_total": saved + linkedin_saved,
-        "has_more": has_more, "next_start": next_start,
-        "pages_scanned": pages_scanned,
-        "continue_search": continue_search,
+        "saved":             saved,
+        "linkedin_saved":    linkedin_saved,
+        "saved_total":       saved + linkedin_saved,
+        "has_more":          has_more,
+        "next_start":        next_start,
+        "pages_scanned":     pages_scanned,
+        "continue_search":   continue_search,
         "scan_all_remaining": scan_all_remaining,
-        "country_filter": country_filter, "trusted_only": trusted_only,
+        "country_filter":    country_filter,
+        "trusted_only":      trusted_only,
     }
 
 
@@ -384,11 +387,14 @@ def _run_discovery_job(job_id: str, query: str, continue_search: bool,
             country_filter=country_filter, trusted_only=trusted_only,
             user_id=user_id,
         )
-        _upsert_job(job_id, status="completed", finished_at=datetime.utcnow(), **result)
-        logger.info("Job %s (user=%s) completed: saved=%s", job_id, user_id, result.get("saved_total"))
+        _upsert_job(job_id, status="completed",
+                    finished_at=datetime.utcnow(), **result)
+        logger.info("Job %s (user=%s) completed: saved=%s",
+                    job_id, user_id, result.get("saved_total"))
     except Exception as exc:
         logger.exception("Job %s failed: %s", job_id, exc)
-        _upsert_job(job_id, status="failed", finished_at=datetime.utcnow(), error=str(exc))
+        _upsert_job(job_id, status="failed",
+                    finished_at=datetime.utcnow(), error=str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -456,14 +462,25 @@ def start_search(
 
     job_id = uuid.uuid4().hex
     job = {
-        "job_id": job_id, "query": query, "status": "queued",
-        "user_id": user_id,
-        "continue_search": continue_search, "scan_all_remaining": scan_all_remaining,
-        "country_filter": country_filter, "trusted_only": trusted_only,
-        "created_at": datetime.utcnow(), "started_at": None, "finished_at": None,
-        "saved": 0, "linkedin_saved": 0, "saved_total": 0,
-        "has_more": True, "next_start": 0, "pages_scanned": 0,
-        "error": "", "results": [],
+        "job_id":            job_id,
+        "query":             query,
+        "status":            "queued",
+        "user_id":           user_id,
+        "continue_search":   continue_search,
+        "scan_all_remaining": scan_all_remaining,
+        "country_filter":    country_filter,
+        "trusted_only":      trusted_only,
+        "created_at":        datetime.utcnow(),
+        "started_at":        None,
+        "finished_at":       None,
+        "saved":             0,
+        "linkedin_saved":    0,
+        "saved_total":       0,
+        "has_more":          True,
+        "next_start":        0,
+        "pages_scanned":     0,
+        "error":             "",
+        "results":           [],
     }
     with SEARCH_JOBS_LOCK:
         SEARCH_JOBS[job_id] = job
@@ -475,8 +492,13 @@ def start_search(
         daemon=True,
     )
     worker.start()
-    return {"job_id": job_id, "status": "started", "query": query,
-            "continue_search": continue_search, "country_filter": country_filter}
+    return {
+        "job_id":          job_id,
+        "status":          "started",
+        "query":           query,
+        "continue_search": continue_search,
+        "country_filter":  country_filter,
+    }
 
 
 @app.get("/search/status/{job_id}")
@@ -507,8 +529,12 @@ def search_results(job_id: str, since: int = 0,
         total     = len(job["results"])
         start_idx = max(0, min(int(since), total))
         items     = job["results"][start_idx:]
-    return {"job_id": job_id, "results": items,
-            "next_since": start_idx + len(items), "total": total}
+    return {
+        "job_id":      job_id,
+        "results":     items,
+        "next_since":  start_idx + len(items),
+        "total":       total,
+    }
 
 
 @app.get("/search/more-like-this/{job_id}")
@@ -523,13 +549,16 @@ def search_more_like_this(job_id: str, result_index: int, limit: int = 5,
         results = list(job.get("results", []))
 
     seed = next(
-        (r for r in results if int(r.get("result_index", -1)) == int(result_index)), None)
+        (r for r in results
+         if int(r.get("result_index", -1)) == int(result_index)), None)
     if not seed:
         raise HTTPException(status_code=404, detail="seed result not found")
 
     seed_text = " ".join(filter(None, [
-        seed.get("company", ""), seed.get("ai_summary", ""),
-        " ".join(seed.get("products", []) if isinstance(seed.get("products"), list) else []),
+        seed.get("company", ""),
+        seed.get("ai_summary", ""),
+        " ".join(seed.get("products", [])
+                 if isinstance(seed.get("products"), list) else []),
     ]))
 
     scored = []
@@ -539,19 +568,25 @@ def search_more_like_this(job_id: str, result_index: int, limit: int = 5,
         if int(row.get("result_index", -1)) == int(result_index):
             continue
         row_text = " ".join(filter(None, [
-            row.get("company", ""), row.get("ai_summary", ""),
-            " ".join(row.get("products", []) if isinstance(row.get("products"), list) else []),
+            row.get("company", ""),
+            row.get("ai_summary", ""),
+            " ".join(row.get("products", [])
+                     if isinstance(row.get("products"), list) else []),
         ]))
         sim     = max(0.0, float(semantic_similarity(seed_text, row_text)))
-        blended = round((0.7 * sim) + (0.3 * float(row.get("final_score", 0) or 0)), 3)
+        blended = round(
+            (0.7 * sim) + (0.3 * float(row.get("final_score", 0) or 0)), 3)
         item    = dict(row)
         item["similarity_score"]     = round(sim, 3)
         item["more_like_this_score"] = blended
         scored.append(item)
 
     scored.sort(key=lambda x: x.get("more_like_this_score", 0), reverse=True)
-    return {"job_id": job_id, "seed_result_index": int(result_index),
-            "results": scored[: max(1, min(int(limit), 20))]}
+    return {
+        "job_id":             job_id,
+        "seed_result_index":  int(result_index),
+        "results":            scored[: max(1, min(int(limit), 20))],
+    }
 
 
 # ---- Leads read ----
@@ -578,7 +613,6 @@ def get_leads(
         filters["source"] = source
     if min_score > 0:
         filters["final_score"] = {"$gte": float(min_score)}
-
     cursor = (
         leads_collection.find(filters, {"_id": 0})
         .sort("final_score", -1)
@@ -594,10 +628,13 @@ def leads_by_channel(
     min_score: float = 0.0, limit: int = 500,
     user: dict = Depends(get_current_user),
 ):
-    valid = {"Manufacturer", "Importer", "Trader", "Wholesaler", "Distributor", "Retailer"}
+    valid = {"Manufacturer", "Importer", "Trader",
+             "Wholesaler", "Distributor", "Retailer"}
     channel = channel.strip().title()
     if channel not in valid:
-        raise HTTPException(status_code=400, detail=f"channel must be one of {sorted(valid)}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"channel must be one of {sorted(valid)}")
     filters = _user_base_filter(user, country_filter)
     filters["channel_type"] = channel
     filters["source"]       = {"$ne": "linkedin_semantic"}
@@ -661,7 +698,8 @@ def enrich_compliance_background(
     filters["company"]            = {"$exists": True, "$ne": ""}
 
     leads = list(
-        leads_collection.find(filters, {"_id": 1, "company": 1, "website": 1})
+        leads_collection
+        .find(filters, {"_id": 1, "company": 1, "website": 1})
         .limit(max(1, min(int(limit), 200)))
     )
 
@@ -713,7 +751,6 @@ def get_leads_with_gaps(
         filters["final_score"] = {"$gte": float(min_score)}
     if importance:
         filters["importance"] = importance.strip().lower()
-
     cursor = (
         leads_collection.find(filters, {"_id": 0})
         .sort([("compliance_score", 1), ("final_score", -1)])
@@ -731,7 +768,8 @@ def gap_summary(country_filter: str = "",
     filters["compliance_checked"] = True
     pipeline = [
         {"$match": filters},
-        {"$unwind": {"path": "$compliance_gaps", "preserveNullAndEmptyArrays": False}},
+        {"$unwind": {"path": "$compliance_gaps",
+                     "preserveNullAndEmptyArrays": False}},
         {"$group": {"_id": "$compliance_gaps", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
     ]
@@ -791,14 +829,13 @@ def clear(user: dict = Depends(get_current_user)):
             SEARCH_JOBS.clear()
         return {"status": "cleared", "scope": "all"}
     else:
-        leads_collection.delete_many({"user_id": user["user_id"]})
-        # state_key starts with user_id| so we can regex-filter safely
+        uid = user["user_id"]
+        leads_collection.delete_many({"user_id": uid})
         search_state_collection.delete_many(
-            {"state_key": {"$regex": f"^{user['user_id']}\\|"}}
-        )
+            {"state_key": {"$regex": f"^{uid}\\|"}})
         with SEARCH_JOBS_LOCK:
             to_del = [jid for jid, j in SEARCH_JOBS.items()
-                      if j.get("user_id") == user["user_id"]]
+                      if j.get("user_id") == uid]
             for jid in to_del:
                 del SEARCH_JOBS[jid]
-        return {"status": "cleared", "scope": user["user_id"]}
+        return {"status": "cleared", "scope": uid}
