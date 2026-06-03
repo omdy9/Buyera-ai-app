@@ -2,7 +2,6 @@
 database.py — MongoDB collections
 """
 from pymongo import MongoClient
-from pymongo.errors import OperationFailure
 from dotenv import load_dotenv
 import os
 import logging
@@ -20,31 +19,53 @@ leads_collection        = db["leads"]
 search_state_collection = db["search_state"]
 users_collection        = db["users"]
 
-# ---------------------------------------------------------------------------
-# Nuke every index on search_state except _id, then rebuild correctly.
-# The old unique index on {user_id, query} causes E11000 because docs only
-# have a state_key field — user_id and query are always null/missing.
-# ---------------------------------------------------------------------------
+
 def _fix_search_state_indexes():
+    """
+    Clean up the search_state collection so a unique index on state_key works:
+    1. Drop every non-_id index (gets rid of the bad user_id+query index and
+       any half-built state_key index).
+    2. Delete all documents that have state_key = null / missing — these are
+       orphan rows from the old schema and will block index creation.
+    3. Create the correct unique index on state_key.
+    """
     try:
+        # Step 1 — drop all existing indexes except _id
         existing = search_state_collection.index_information()
-        for name, info in existing.items():
+        for name in list(existing.keys()):
             if name == "_id_":
-                continue  # never drop the primary index
+                continue
             try:
                 search_state_collection.drop_index(name)
                 logger.info("Dropped search_state index: %s", name)
             except Exception as e:
                 logger.warning("Could not drop index %s: %s", name, e)
-        # Now create the correct unique index
+
+        # Step 2 — purge documents that have no state_key (or null state_key)
+        result = search_state_collection.delete_many(
+            {"$or": [
+                {"state_key": {"$exists": False}},
+                {"state_key": None},
+                {"state_key": ""},
+            ]}
+        )
+        if result.deleted_count:
+            logger.info(
+                "Deleted %d orphan search_state documents with null/missing state_key",
+                result.deleted_count,
+            )
+
+        # Step 3 — create the correct unique index
         search_state_collection.create_index("state_key", unique=True)
-        logger.info("Created correct search_state index on state_key")
+        logger.info("Created unique index on search_state.state_key")
+
     except Exception as e:
-        logger.warning("_fix_search_state_indexes failed: %s", e)
+        logger.error("_fix_search_state_indexes failed: %s", e)
+
 
 _fix_search_state_indexes()
 
-# Core indexes (idempotent)
+# Core indexes (idempotent — safe to run on every startup)
 try:
     leads_collection.create_index("company")
     leads_collection.create_index("website")
@@ -52,4 +73,4 @@ try:
     users_collection.create_index("username", unique=True)
     users_collection.create_index("user_id",  unique=True)
 except Exception as e:
-    logger.warning("Index creation warning: %s", e)
+    logger.warning("Core index creation warning: %s", e)
