@@ -1,17 +1,5 @@
 """
 backend/main.py  –  v3  (per-user lead isolation)
-==================================================
-
-Every lead is now stamped with user_id on write and filtered by user_id on read.
-Anonymous access still works (user_id = "anonymous") so existing deployments
-don't break immediately, but the UI always sends a token after login.
-
-New endpoints
--------------
-POST /auth/register   {username, password, email?}  → {user_id, username, token}
-POST /auth/login      {username, password}           → {user_id, username, token}
-GET  /auth/me         (requires X-User-Token)        → {user_id, username, role}
-DELETE /clear         now only deletes the current user's leads (admin deletes all)
 """
 
 from datetime import datetime
@@ -50,7 +38,7 @@ MAX_JOBS_IN_MEMORY           = 200
 SEARCH_JOBS: dict = {}
 SEARCH_JOBS_LOCK  = threading.Lock()
 
-ANONYMOUS = "anonymous"   # fallback user_id when no token provided
+ANONYMOUS = "anonymous"
 
 
 # ---------------------------------------------------------------------------
@@ -74,6 +62,18 @@ class LoginRequest(BaseModel):
 @app.on_event("startup")
 def ensure_indexes():
     try:
+        # Drop the bad index that caused E11000 duplicate key errors.
+        # search_state docs are keyed by state_key, not by user_id+query fields.
+        for bad in ["user_id_1_query_1", "query_1"]:
+            try:
+                search_state_collection.drop_index(bad)
+            except Exception:
+                pass
+
+        # Correct unique index for search_state
+        search_state_collection.create_index("state_key", unique=True)
+
+        # Leads indexes
         leads_collection.create_index([("user_id", 1), ("searched_query", 1), ("created_at", -1)])
         leads_collection.create_index([("user_id", 1), ("website", 1)])
         leads_collection.create_index([("user_id", 1), ("final_score", -1)])
@@ -81,7 +81,7 @@ def ensure_indexes():
         leads_collection.create_index([("user_id", 1), ("channel_type", 1)])
         leads_collection.create_index([("user_id", 1), ("industry_detected", 1)])
         leads_collection.create_index([("user_id", 1), ("city", 1)])
-        search_state_collection.create_index([("user_id", 1), ("query", 1)], unique=True)
+
         logger.info("MongoDB indexes ensured.")
     except Exception as exc:
         logger.warning("Index creation skipped: %s", exc)
@@ -185,8 +185,6 @@ def _evict_old_jobs() -> None:
 def _build_lead_doc(c: dict, query: str, country_filter: str,
                     user_id: str = ANONYMOUS,
                     search_job_id: str | None = None) -> dict:
-    """Convert a scored company dict into the full MongoDB lead document."""
-
     country_match = 0
     if country_filter:
         combined = " ".join([
@@ -207,51 +205,34 @@ def _build_lead_doc(c: dict, query: str, country_filter: str,
     company_type_mca = mca.get("company_type", "")
 
     doc = {
-        # --- Ownership (NEW) ---
         "user_id":            user_id,
-
-        # --- Identity ---
         "company":            c.get("company", ""),
         "website":            c.get("website", ""),
         "active_website":     c.get("active_website", c.get("website", "")),
-
-        # --- Location ---
         "city":               c.get("city", ""),
         "country_detected":   c.get("country_detected", ""),
         "country_filter":     country_filter,
         "country_match":      country_match,
-
-        # --- Contact ---
         "email":              c.get("email", ""),
         "phone":              c.get("phone", ""),
         "contact_person":     c.get("contact_person", ""),
         "contact_email":      c.get("contact_email", c.get("email", "")),
-
-        # --- Social ---
         "linkedin_url":       c.get("linkedin_url", ""),
-
-        # --- Company profile ---
         "industry_detected":  c.get("industry_detected", ""),
         "product_type":       c.get("product_type", ""),
         "channel_type":       c.get("channel_type", ""),
         "company_size":       c.get("company_size", ""),
         "incorporation_date": incorporation_date,
         "mca_company_type":   company_type_mca,
-
-        # --- AI / NLP ---
         "ai_summary":         c.get("summary", ""),
         "products":           c.get("products", []),
         "llm_relevant":       c.get("llm_relevant"),
-
-        # --- Scoring ---
         "semantic_score":     c.get("semantic_score", 0.0),
         "keyword_score":      c.get("keyword_score", 0.0),
         "domain_authority":   c.get("domain_authority", 0.0),
         "contact_presence":   c.get("contact_presence", 0.0),
         "final_score":        c.get("final_score", 0.0),
         "importance":         c.get("importance", "low"),
-
-        # --- Compliance ---
         "compliance_gaps":    compliance_gaps,
         "compliance_score":   compliance.get("compliance_score", 1.0),
         "bis_certified":      compliance.get("bis",  {}).get("certified",  None),
@@ -270,8 +251,6 @@ def _build_lead_doc(c: dict, query: str, country_filter: str,
                 compliance.get("mca",  {}),
             ]
         ),
-
-        # --- Meta ---
         "searched_query": query,
         "source":         "google_semantic",
         "created_at":     datetime.utcnow(),
@@ -506,7 +485,6 @@ def search_status(job_id: str, user: dict = Depends(get_current_user)):
         job = SEARCH_JOBS.get(job_id)
         if not job:
             raise HTTPException(status_code=404, detail="job not found")
-        # Users can only see their own jobs
         if job.get("user_id") != user["user_id"] and user.get("role") != "admin":
             raise HTTPException(status_code=403, detail="access denied")
         payload = {k: v for k, v in job.items() if k != "results"}
@@ -576,10 +554,9 @@ def search_more_like_this(job_id: str, result_index: int, limit: int = 5,
             "results": scored[: max(1, min(int(limit), 20))]}
 
 
-# ---- Leads read — ALL filtered by user_id ----
+# ---- Leads read ----
 
 def _user_base_filter(user: dict, country_filter: str = "") -> dict:
-    """Base MongoDB filter that scopes results to the current user."""
     f: dict = {}
     if user.get("role") != "admin":
         f["user_id"] = user["user_id"]
@@ -807,7 +784,6 @@ def recheck_lead(lead_id: str, user: dict = Depends(get_current_user)):
 
 @app.delete("/clear")
 def clear(user: dict = Depends(get_current_user)):
-    """Deletes only the current user's leads. Admins delete everything."""
     if user.get("role") == "admin":
         leads_collection.delete_many({})
         search_state_collection.delete_many({})
@@ -816,7 +792,10 @@ def clear(user: dict = Depends(get_current_user)):
         return {"status": "cleared", "scope": "all"}
     else:
         leads_collection.delete_many({"user_id": user["user_id"]})
-        search_state_collection.delete_many({"state_key": {"$regex": f"^{user['user_id']}|"}})
+        # state_key starts with user_id| so we can regex-filter safely
+        search_state_collection.delete_many(
+            {"state_key": {"$regex": f"^{user['user_id']}\\|"}}
+        )
         with SEARCH_JOBS_LOCK:
             to_del = [jid for jid, j in SEARCH_JOBS.items()
                       if j.get("user_id") == user["user_id"]]
