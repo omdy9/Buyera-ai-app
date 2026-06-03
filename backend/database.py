@@ -16,56 +16,38 @@ db     = client["buyera_ai"]
 
 # Collections
 leads_collection        = db["leads"]
-search_state_collection = db["search_state"]
 users_collection        = db["users"]
 
 
-def _fix_search_state_indexes():
+def _rebuild_search_state():
     """
-    Clean up the search_state collection so a unique index on state_key works:
-    1. Drop every non-_id index (gets rid of the bad user_id+query index and
-       any half-built state_key index).
-    2. Delete all documents that have state_key = null / missing — these are
-       orphan rows from the old schema and will block index creation.
-    3. Create the correct unique index on state_key.
+    The search_state collection has accumulated bad indexes and null-state_key
+    documents across multiple failed migrations. The only reliable fix is to
+    drop the collection entirely and recreate it clean.
+
+    search_state only holds pagination cursors (next_start / has_more) — it
+    contains no user data worth keeping.  Dropping it means the next search
+    for each query starts from page 0 again, which is correct behaviour.
     """
     try:
-        # Step 1 — drop all existing indexes except _id
-        existing = search_state_collection.index_information()
-        for name in list(existing.keys()):
-            if name == "_id_":
-                continue
-            try:
-                search_state_collection.drop_index(name)
-                logger.info("Dropped search_state index: %s", name)
-            except Exception as e:
-                logger.warning("Could not drop index %s: %s", name, e)
-
-        # Step 2 — purge documents that have no state_key (or null state_key)
-        result = search_state_collection.delete_many(
-            {"$or": [
-                {"state_key": {"$exists": False}},
-                {"state_key": None},
-                {"state_key": ""},
-            ]}
-        )
-        if result.deleted_count:
-            logger.info(
-                "Deleted %d orphan search_state documents with null/missing state_key",
-                result.deleted_count,
-            )
-
-        # Step 3 — create the correct unique index
-        search_state_collection.create_index("state_key", unique=True)
-        logger.info("Created unique index on search_state.state_key")
-
+        db.drop_collection("search_state")
+        logger.info("Dropped search_state collection")
     except Exception as e:
-        logger.error("_fix_search_state_indexes failed: %s", e)
+        logger.warning("Could not drop search_state: %s", e)
+
+    # Recreate with the correct unique index from the start
+    col = db["search_state"]
+    try:
+        col.create_index("state_key", unique=True)
+        logger.info("Created fresh unique index on search_state.state_key")
+    except Exception as e:
+        logger.error("Could not create state_key index: %s", e)
+    return col
 
 
-_fix_search_state_indexes()
+search_state_collection = _rebuild_search_state()
 
-# Core indexes (idempotent — safe to run on every startup)
+# Core indexes (idempotent)
 try:
     leads_collection.create_index("company")
     leads_collection.create_index("website")
