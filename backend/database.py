@@ -1,40 +1,50 @@
-from pymongo import MongoClient, ASCENDING, DESCENDING
+"""
+database.py — MongoDB collections
+"""
+from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
-import logging
 
 load_dotenv()
-logger = logging.getLogger(__name__)
 
 MONGO_URI = os.getenv("MONGO_URI")
 
 client = MongoClient(MONGO_URI)
-db = client["buyera_ai"]
+db     = client["buyera_ai"]
 
+# Collections
 leads_collection        = db["leads"]
 search_state_collection = db["search_state"]
 users_collection        = db["users"]
 
-# FIX: wrap index creation — unreachable Mongo at import time must not crash startup
-try:
-    leads_collection.create_index("company")
-    leads_collection.create_index("website")
-    leads_collection.create_index([("user_id", ASCENDING), ("final_score", DESCENDING)])
-    leads_collection.create_index([("user_id", ASCENDING), ("searched_query", ASCENDING)])
-    leads_collection.create_index([("search_job_id", ASCENDING), ("result_index", ASCENDING)])
-
-    # FIX: search_state_collection uniqueness was on [user_id, query] but
-    # _write_search_state() upserts on state_key (a combined string).
-    # Change the unique index to match what the code actually queries on.
+# Drop old conflicting indexes before creating new ones
+for _idx in ["query_1", "user_id_1_query_1"]:
     try:
-        search_state_collection.drop_index("user_id_1_query_1")
+        search_state_collection.drop_index(_idx)
     except Exception:
-        pass
+        pass  # already gone, fine
+
+# Clean up old documents with null fields that cause duplicate key errors
+try:
+    search_state_collection.delete_many(
+        {"$or": [
+            {"user_id": None},
+            {"query": None},
+            {"state_key": {"$exists": False}},
+        ]}
+    )
+except Exception:
+    pass
+
+# Core indexes
+leads_collection.create_index("company")
+leads_collection.create_index("website")
+leads_collection.create_index("user_id")
+users_collection.create_index("username", unique=True)
+users_collection.create_index("user_id",  unique=True)
+
+# Use state_key as the unique field for search_state — never null
+try:
     search_state_collection.create_index("state_key", unique=True)
-
-    users_collection.create_index("username", unique=True)
-    users_collection.create_index("user_id",  unique=True)
-
-    logger.info("MongoDB indexes ensured.")
-except Exception as exc:
-    logger.warning("Startup index creation skipped (will retry on first use): %s", exc)
+except Exception:
+    pass
