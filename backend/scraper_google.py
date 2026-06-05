@@ -1,27 +1,10 @@
 """
-scraper_google.py  –  v4  (enriched company profile edition)
-=============================================================
-
-New in v4
----------
-- extract_company_data() now returns:
-    city, country_detected, linkedin_url, incorporation_date,
-    company_size, channel_type, contact_person, contact_email,
-    active_website, industry_detected, product_type
-- _detect_channel_type()  — classifies Manufacturer/Importer/Trader/
-    Wholesaler/Distributor/Retailer from page text
-- _detect_company_size()  — parses employee-count signals from text
-- _detect_city()          — extracts city from structured address markup
-- _extract_linkedin()     — finds linkedin.com/company URLs in page HTML
-- _detect_incorporation() — finds "incorporated", "established", "founded"
-    date patterns
-- All previous v3 features retained
+scraper_google.py  — v5  (looser filtering + better fallback)
 """
 
 import os
 import re
 import logging
-import hashlib
 import requests
 
 from bs4 import BeautifulSoup
@@ -49,56 +32,24 @@ COUNTRY_GL = {
 }
 
 # ---------------------------------------------------------------------------
-# Domain block-lists (unchanged from v3)
+# Only block the most obvious non-company domains
 # ---------------------------------------------------------------------------
 BAD_DOMAINS = [
     "justdial", "yellowpages", "sulekha", "tradeindia", "indiamart",
-    "exportersindia", "bizvibe", "kompass", "dnb.com", "zaubacorp",
-    "tofler", "zauba", "connect2india", "globalspec", "thomasnet",
-    "alibaba", "aliexpress", "made-in-china", "tradekey",
-    "linkedin", "facebook", "instagram", "twitter", "youtube",
-    "pinterest", "reddit", "quora", "tumblr",
-    "amazon", "flipkart", "snapdeal", "meesho",
-    "wikipedia", "wikidata", "crunchbase",
-    "business-standard", "economictimes", "livemint", "moneycontrol",
-    "thehindu", "ndtv", "hindustantimes", "financialexpress",
-    "theprint", "scroll.in", "wire.in",
-    "clutch.co", "goodfirms", "sortlist", "bark.com", "upcity",
-    "toptenreviews", "g2.com", "capterra",
-    "blogspot", "wordpress", "medium", "ghost.io",
-    "wix", "weebly", "squarespace", "webflow", "jimdo",
-    "site123", "yola", "strikingly", "carrd",
-    "naukri", "monster", "indeed", "shine.com", "glassdoor", "internshala",
-    "makeinindia", "startupindia", "ibef.org", "ficci.in", "assocham", "cii.in",
+    "exportersindia", "linkedin", "facebook", "instagram", "twitter",
+    "youtube", "amazon", "flipkart", "wikipedia", "wikidata",
+    "naukri", "monster", "indeed", "glassdoor",
+    "blogspot", "wordpress.com", "medium.com",
 ]
 
-_ARTICLE_PATH_RE = re.compile(
-    r"/(top|best|list|ranking|review|compare|vs|news|article|blog|"
-    r"post|insight|report|guide|tips|how-?to|press-?release|"
-    r"category|tag|author|page/\d|p/\d|\d{4}/\d{2}/\d{2})",
-    re.IGNORECASE,
-)
-
-_ARTICLE_TITLE_RE = re.compile(
-    r"(top\s+\d+|best\s+\d*\s*|leading\s+\d+|\d+\s+best|\d+\s+top"
-    r"|list\s+of|brands\s+in|companies\s+in|manufacturers\s+in"
-    r"|suppliers\s+in|directory|ranking|review\s+of|compared|vs\.)",
-    re.IGNORECASE,
-)
-
 _FREE_HOST_RE = re.compile(
-    r"\.(blogspot|wordpress|wixsite|weebly|squarespace|"
-    r"webflow|ghost|carrd|strikingly|yola|jimdo)\.",
+    r"\.(blogspot|wordpress\.com|wixsite|weebly)\.",
     re.IGNORECASE,
 )
 
 _EXCLUDE_SITES = [
-    "indiamart.com", "justdial.com", "tradeindia.com", "sulekha.com",
-    "exportersindia.com", "yellowpages.in", "clutch.co", "goodfirms.co",
-    "wikipedia.org", "quora.com", "reddit.com", "medium.com",
-    "business-standard.com", "economictimes.indiatimes.com",
-    "livemint.com", "moneycontrol.com", "ndtv.com",
-    "linkedin.com", "facebook.com",
+    "indiamart.com", "justdial.com", "tradeindia.com",
+    "wikipedia.org", "linkedin.com", "facebook.com",
 ]
 
 _QUERY_STRIP_WORDS = re.compile(
@@ -107,7 +58,7 @@ _QUERY_STRIP_WORDS = re.compile(
 )
 
 # ---------------------------------------------------------------------------
-# NEW: Channel-type keywords
+# Channel-type keywords
 # ---------------------------------------------------------------------------
 _CHANNEL_KEYWORDS = {
     "Manufacturer": [
@@ -119,7 +70,7 @@ _CHANNEL_KEYWORDS = {
         "customs", "iec", "cif", "fob",
     ],
     "Wholesaler": [
-        "wholesaler", "wholesale", "bulk supply", "bulk order", "bulk pricing",
+        "wholesaler", "wholesale", "bulk supply", "bulk order",
         "minimum order quantity", "moq",
     ],
     "Distributor": [
@@ -127,132 +78,120 @@ _CHANNEL_KEYWORDS = {
         "authorized distributor", "exclusive distributor", "channel partner",
     ],
     "Trader": [
-        "trader", "trading company", "trading house", "commodity trading",
-        "buy and sell",
+        "trader", "trading company", "trading house", "buy and sell",
     ],
     "Retailer": [
-        "retailer", "retail", "walk-in", "showroom", "store",
-        "shop online", "add to cart", "buy now",
+        "retailer", "retail", "showroom", "store", "shop online", "add to cart",
     ],
 }
 
-# NEW: Company-size signals
-_SIZE_PATTERNS = [
-    (re.compile(r"\b([1-9]\d?)\s*(employees|staff|people|team members)\b", re.I), "1–{n}"),
-    (re.compile(r"\b(1[0-4]\d|[1-9]\d)\s*[-–to]+\s*(\d{2,3})\s*(employees|staff)\b", re.I), "{a}–{b}"),
-    (re.compile(r"\b(5[0-9]|[6-9]\d|[1-4]\d{2})\s*(employees|staff|people)\b", re.I), "50–499"),
-    (re.compile(r"\b([5-9]\d{2}|[1-4]\d{3})\s*(employees|staff|people)\b", re.I), "500–4999"),
-    (re.compile(r"\b([5-9]\d{3}|\d{5,})\s*(employees|staff|people)\b", re.I), "5000+"),
-    (re.compile(r"team\s+of\s+(\d+)", re.I), "team of {n}"),
-    (re.compile(r"(\d{2,4})\s*\+?\s*(employees|professionals|experts|engineers)", re.I), "{n}+"),
-    # LinkedIn-style size labels scraped from about pages
-    (re.compile(r"(1[-–]10|11[-–]50|51[-–]200|201[-–]500|501[-–]1[,.]?000|1[,.]?001[-–]5[,.]?000|5[,.]?001[-–]10[,.]?000|10[,.]?001\+)\s*(employees)?", re.I), "{n}"),
-]
-
-# NEW: Incorporation / founded date patterns
-_INCORP_PATTERNS = [
-    re.compile(r"(?:incorporated|established|founded|since|est\.?)\s*(?:in\s*)?(\d{4})", re.I),
-    re.compile(r"(?:year\s+of\s+(?:incorporation|establishment|founding))[:\s]+(\d{4})", re.I),
-    re.compile(r"\bCIN\b.{0,60}(\d{2})/(\d{4})\b"),   # MCA CIN contains year
-    re.compile(r"(?:date\s+of\s+incorporation)[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{4})", re.I),
-    re.compile(r"(?:date\s+of\s+incorporation)[:\s]+(\d{4})", re.I),
-]
-
-# NEW: City extraction — common Indian + global city list for fast match
 _MAJOR_CITIES = [
     "Mumbai","Delhi","Bangalore","Bengaluru","Hyderabad","Ahmedabad","Chennai",
-    "Kolkata","Surat","Pune","Jaipur","Lucknow","Kanpur","Nagpur","Indore",
-    "Thane","Bhopal","Visakhapatnam","Pimpri","Patna","Vadodara","Ghaziabad",
-    "Ludhiana","Agra","Nashik","Faridabad","Meerut","Rajkot","Varanasi",
-    "Aurangabad","Coimbatore","Vijayawada","Noida","Gurgaon","Gurugram",
-    "Chandigarh","Mysore","Mysuru","Amritsar","Kochi","Cochin","Ernakulam",
-    # Global
-    "Dubai","Abu Dhabi","Singapore","Kuala Lumpur","Hong Kong","Shanghai",
-    "Beijing","London","New York","Los Angeles","Toronto","Sydney","Melbourne",
-    "Frankfurt","Paris","Amsterdam","Milan","Zurich",
+    "Kolkata","Surat","Pune","Jaipur","Lucknow","Nagpur","Indore","Thane",
+    "Bhopal","Visakhapatnam","Patna","Vadodara","Ghaziabad","Ludhiana","Agra",
+    "Nashik","Faridabad","Meerut","Rajkot","Varanasi","Aurangabad","Coimbatore",
+    "Vijayawada","Noida","Gurgaon","Gurugram","Chandigarh","Mysore","Mysuru",
+    "Amritsar","Kochi","Cochin","Ernakulam","Dubai","Abu Dhabi","Singapore",
+    "Kuala Lumpur","Hong Kong","Shanghai","Beijing","London","New York",
+    "Los Angeles","Toronto","Sydney","Melbourne","Frankfurt","Paris",
 ]
 _CITY_RE = re.compile(
     r"\b(" + "|".join(re.escape(c) for c in _MAJOR_CITIES) + r")\b",
     re.IGNORECASE,
 )
 
-# NEW: LinkedIn company URL pattern
 _LINKEDIN_RE = re.compile(
     r'https?://(?:www\.)?linkedin\.com/company/[A-Za-z0-9\-_%]+/?',
     re.IGNORECASE,
 )
 
-# NEW: Country detection from page text
 _COUNTRY_MENTIONS = {
-    "India": ["india", "indian", ".in", "bharath", "bharat"],
-    "UAE": ["uae", "dubai", "abu dhabi", "emirates", "emirati"],
-    "USA": ["usa", "united states", "america", "u.s.a"],
-    "UK": ["uk", "united kingdom", "britain", "england", "london"],
-    "Germany": ["germany", "german", "deutschland"],
+    "India":     ["india", "indian", ".in", "bharath", "bharat"],
+    "UAE":       ["uae", "dubai", "abu dhabi", "emirates"],
+    "USA":       ["usa", "united states", "america"],
+    "UK":        ["uk", "united kingdom", "britain", "england"],
+    "Germany":   ["germany", "german", "deutschland"],
     "Singapore": ["singapore"],
-    "Canada": ["canada", "canadian"],
+    "Canada":    ["canada", "canadian"],
     "Australia": ["australia", "australian"],
-    "China": ["china", "chinese", "prc"],
-    "Italy": ["italy", "italian", "italia"],
+    "China":     ["china", "chinese"],
+    "Italy":     ["italy", "italian"],
 }
 
+_INCORP_PATTERNS = [
+    re.compile(r"(?:incorporated|established|founded|since|est\.?)\s*(?:in\s*)?(\d{4})", re.I),
+    re.compile(r"(?:year\s+of\s+(?:incorporation|establishment|founding))[:\s]+(\d{4})", re.I),
+    re.compile(r"(?:date\s+of\s+incorporation)[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{4})", re.I),
+]
+
+INDUSTRY_MAP = {
+    "Electronics":      ["electronics", "semiconductor", "circuit", "pcb", "led", "display"],
+    "Pharmaceuticals":  ["pharma", "pharmaceutical", "medicine", "drug", "api"],
+    "Textiles":         ["textile", "fabric", "garment", "apparel", "yarn"],
+    "Chemicals":        ["chemical", "polymer", "resin", "adhesive", "solvent"],
+    "Machinery":        ["machinery", "machine", "equipment", "cnc", "lathe"],
+    "Food & Beverage":  ["food", "beverage", "spice", "grain", "dairy"],
+    "Automotive":       ["automotive", "automobile", "vehicle", "car", "truck"],
+    "Construction":     ["construction", "cement", "steel", "rebar", "building"],
+    "IT & Software":    ["software", "it services", "saas", "technology", "cloud"],
+    "Healthcare":       ["healthcare", "hospital", "medical device", "diagnostics"],
+    "Logistics":        ["logistics", "freight", "shipping", "warehouse"],
+    "Agriculture":      ["agriculture", "agro", "fertilizer", "pesticide", "seed"],
+    "Energy":           ["energy", "solar", "wind", "power", "battery"],
+    "Retail":           ["retail", "ecommerce", "e-commerce", "marketplace"],
+}
+
+
 # ---------------------------------------------------------------------------
-# Query sanitiser (unchanged)
+# Helpers
 # ---------------------------------------------------------------------------
 
 def _sanitise_query(query: str, country_filter: str = "") -> str:
     clean_q = _QUERY_STRIP_WORDS.sub("", query).strip()
-    clean_q = re.sub(r"\b\d+\b", "", clean_q)
     clean_q = re.sub(r"\s{2,}", " ", clean_q)
     if country_filter and country_filter.lower() not in clean_q.lower():
         clean_q = f"{clean_q} {country_filter}"
     return clean_q.strip()
 
 
-# ---------------------------------------------------------------------------
-# URL / title classifier (unchanged)
-# ---------------------------------------------------------------------------
-
 def _is_company_url(url: str, title: str = "") -> bool:
+    """Looser filter — only block obvious non-company domains."""
     if not url:
         return False
     parsed = urlparse(url)
     netloc = parsed.netloc.lower().replace("www.", "")
-    path   = parsed.path.lower()
+    # Block known bad domains
     for bad in BAD_DOMAINS:
         if bad.lower() in netloc:
             return False
+    # Block free hosting
     if _FREE_HOST_RE.search(netloc):
-        return False
-    if _ARTICLE_PATH_RE.search(path):
-        return False
-    if title and _ARTICLE_TITLE_RE.search(title):
-        if not re.search(
-            r"\b(pvt\.?\s*ltd|private\s+limited|corp|incorporated|inc\.|llp)\b",
-            title, re.IGNORECASE
-        ):
-            return False
-    path_parts = [p for p in path.split("/") if p]
-    if len(path_parts) > 4:
         return False
     return True
 
 
 def _clean_title(title: str) -> str:
-    generic_suffixes = re.compile(
-        r"\s*[\|\-\u2013\u2014:]+\s*(home|welcome|official\s+website|official\s+site"
-        r"|about\s+us|contact\s+us|index|main\s+page|homepage)\s*$",
+    suffixes = re.compile(
+        r"\s*[\|\-\u2013\u2014:]+\s*(home|welcome|official\s+website|about\s+us"
+        r"|contact\s+us|index|homepage)\s*$",
         re.IGNORECASE,
     )
-    return generic_suffixes.sub("", title).strip()
+    return suffixes.sub("", title).strip()
 
 
-# ---------------------------------------------------------------------------
-# NEW: Enrichment helpers
-# ---------------------------------------------------------------------------
+def _domain_authority_heuristic(url: str) -> float:
+    netloc = urlparse(url).netloc.lower().replace("www.", "")
+    score  = 0.5
+    if netloc.endswith(".com"):
+        score += 0.20
+    if any(netloc.endswith(t) for t in [".ae", ".in", ".co.uk", ".com.au", ".sg", ".ca", ".co.in"]):
+        score += 0.15
+    if len(netloc.split(".")) > 3:
+        score -= 0.10
+    return round(min(max(score, 0.0), 1.0), 3)
+
 
 def _detect_channel_type(text: str) -> str:
-    """Return best-match channel type or empty string."""
     text_lower = text.lower()
     scores = {}
     for channel, keywords in _CHANNEL_KEYWORDS.items():
@@ -261,40 +200,23 @@ def _detect_channel_type(text: str) -> str:
     return best if scores[best] > 0 else ""
 
 
-def _detect_company_size(text: str) -> str:
-    """Return employee-count range string or empty string."""
-    for pattern, label in _SIZE_PATTERNS:
-        m = pattern.search(text)
-        if m:
-            if "{n}" in label:
-                return label.replace("{n}", m.group(1))
-            if "{a}" in label and "{b}" in label:
-                return f"{m.group(1)}–{m.group(2)}"
-            return label
+def _detect_industry(text: str) -> str:
+    text_lower = text.lower()
+    for industry, keywords in INDUSTRY_MAP.items():
+        if any(kw in text_lower for kw in keywords):
+            return industry
     return ""
 
 
 def _detect_city(text: str, html: str = "") -> str:
-    """Extract city from schema markup first, then plain text."""
-    # Try JSON-LD / microdata address locality
-    locality = re.search(
-        r'"addressLocality"\s*:\s*"([^"]{2,40})"', html, re.IGNORECASE
-    )
+    locality = re.search(r'"addressLocality"\s*:\s*"([^"]{2,40})"', html, re.I)
     if locality:
         return locality.group(1).strip()
-    # Try schema.org itemprop
-    locality2 = re.search(
-        r'itemprop=["\']addressLocality["\'][^>]*>([^<]{2,40})<', html, re.IGNORECASE
-    )
-    if locality2:
-        return locality2.group(1).strip()
-    # Fallback: known-city list scan
     m = _CITY_RE.search(text)
     return m.group(1).title() if m else ""
 
 
 def _detect_country_from_text(text: str) -> str:
-    """Return detected country name from page text."""
     text_lower = text.lower()
     for country, signals in _COUNTRY_MENTIONS.items():
         if any(s in text_lower for s in signals):
@@ -303,158 +225,54 @@ def _detect_country_from_text(text: str) -> str:
 
 
 def _extract_linkedin(html: str) -> str:
-    """Find first LinkedIn company profile URL in raw HTML."""
     m = _LINKEDIN_RE.search(html)
     return m.group(0).rstrip("/") if m else ""
 
 
 def _detect_incorporation(text: str) -> str:
-    """Extract incorporation / founding year or date."""
     for pat in _INCORP_PATTERNS:
         m = pat.search(text)
         if m:
-            # Return the most specific group
-            return m.group(1) if m.lastindex else ""
+            return m.group(1)
+    return ""
+
+
+def _detect_company_size(text: str) -> str:
+    patterns = [
+        (re.compile(r"\b(\d{1,4})\s*[-–to]+\s*(\d{2,5})\s*(employees|staff)\b", re.I), "{a}–{b}"),
+        (re.compile(r"\b(\d{2,5})\s*\+?\s*(employees|staff|people|professionals)\b", re.I), "{n}+"),
+        (re.compile(r"team\s+of\s+(\d+)", re.I), "team of {n}"),
+    ]
+    for pattern, label in patterns:
+        m = pattern.search(text)
+        if m:
+            if "{a}" in label:
+                return f"{m.group(1)}–{m.group(2)}"
+            return label.replace("{n}", m.group(1))
     return ""
 
 
 def _detect_product_type(text: str, query: str = "") -> str:
-    """
-    Best-effort product type from query keywords + page content.
-    Returns the top noun phrase from the query if nothing better found.
-    """
-    # Use query words as seed
     words = [w for w in re.findall(r"[a-zA-Z]{4,}", query.lower())
              if w not in {"from", "with", "that", "this", "their", "company",
                           "import", "export", "india", "best", "list"}]
     if words:
         return " ".join(words[:3]).title()
-    # Fallback: look for product mentions in text
-    m = re.search(
-        r"\b((?:[A-Z][a-z]+ ){0,2}(?:Products?|Solutions?|Systems?|Equipment|Devices?|Components?))\b",
-        text,
-    )
-    return m.group(1).strip() if m else ""
-
-
-def _detect_industry(text: str) -> str:
-    """Simple rule-based industry detection."""
-    INDUSTRY_MAP = {
-        "Electronics": ["electronics", "semiconductor", "circuit", "pcb", "led", "display"],
-        "Pharmaceuticals": ["pharma", "pharmaceutical", "medicine", "drug", "api", "formulation"],
-        "Textiles": ["textile", "fabric", "garment", "apparel", "yarn", "weaving"],
-        "Chemicals": ["chemical", "polymer", "resin", "adhesive", "solvent", "dye"],
-        "Machinery": ["machinery", "machine", "equipment", "cnc", "lathe", "press"],
-        "Food & Beverage": ["food", "beverage", "spice", "grain", "dairy", "snack"],
-        "Automotive": ["automotive", "automobile", "vehicle", "car", "truck", "tyre"],
-        "Construction": ["construction", "cement", "steel", "rebar", "building material"],
-        "IT & Software": ["software", "it services", "saas", "technology", "cloud", "erp"],
-        "Healthcare": ["healthcare", "hospital", "medical device", "diagnostics"],
-        "Logistics": ["logistics", "freight", "shipping", "warehouse", "supply chain"],
-        "Agriculture": ["agriculture", "agro", "fertilizer", "pesticide", "seed"],
-        "Energy": ["energy", "solar", "wind", "power", "battery", "generator"],
-        "Retail": ["retail", "ecommerce", "e-commerce", "marketplace", "fmcg"],
-    }
-    text_lower = text.lower()
-    for industry, keywords in INDUSTRY_MAP.items():
-        if any(kw in text_lower for kw in keywords):
-            return industry
     return ""
 
 
 # ---------------------------------------------------------------------------
-# MCA / GSTIN spot-check (unchanged from v3)
-# ---------------------------------------------------------------------------
-_DOMAIN_VERIFIED_CACHE: dict = {}
-
-
-def _verify_india_domain(domain: str, company_name: str) -> bool:
-    cache_key = hashlib.md5((domain + company_name).lower().encode()).hexdigest()[:12]
-    if cache_key in _DOMAIN_VERIFIED_CACHE:
-        return _DOMAIN_VERIFIED_CACHE[cache_key]
-    name_clean = re.sub(
-        r"\b(pvt|ltd|private|limited|llp|corp|inc|co)\b\.?",
-        "", company_name, flags=re.IGNORECASE
-    ).strip()
-    name_clean = re.sub(r"[^a-zA-Z0-9 ]", " ", name_clean).strip()
-    if len(name_clean) < 3:
-        _DOMAIN_VERIFIED_CACHE[cache_key] = True
-        return True
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0"}
-    verified = False
-    portal_reached = False
-    try:
-        resp = requests.post(
-            "https://services.gst.gov.in/services/api/search/taxpayerByName",
-            json={"tradeName": name_clean[:80]},
-            headers=headers, timeout=8,
-        )
-        portal_reached = True
-        if resp.status_code == 200:
-            taxpayers = resp.json().get("data", []) or []
-            for tp in taxpayers:
-                trade = (tp.get("tradeName", "") or tp.get("lgnm", "")).lower()
-                words = [w for w in name_clean.lower().split() if len(w) > 2]
-                if words and sum(1 for w in words if w in trade) >= max(1, len(words) // 2):
-                    verified = True
-                    break
-    except Exception:
-        pass
-    if not verified:
-        try:
-            resp = requests.get(
-                "https://www.mca.gov.in/mcafoportal/viewCompanyMasterData.do",
-                params={"companyName": name_clean[:60]},
-                headers=headers, timeout=8,
-            )
-            portal_reached = True
-            if resp.status_code == 200:
-                text  = resp.text.lower()
-                words = [w for w in name_clean.lower().split() if len(w) > 2]
-                if words and sum(1 for w in words if w in text) >= max(1, len(words) // 2):
-                    verified = True
-        except Exception:
-            pass
-    result = verified if portal_reached else True
-    _DOMAIN_VERIFIED_CACHE[cache_key] = result
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Domain authority heuristic (unchanged)
+# Website crawl (BS4 only — no Node dependency)
 # ---------------------------------------------------------------------------
 
-def _domain_authority_heuristic(url: str) -> float:
-    netloc = urlparse(url).netloc.lower().replace("www.", "")
-    score  = 0.5
-    if netloc.endswith(".com"):
-        score += 0.20
-    if any(netloc.endswith(t) for t in
-           [".ae", ".in", ".co.uk", ".com.au", ".sg", ".ca", ".co.in"]):
-        score += 0.15
-    if len(netloc.split(".")) > 3:
-        score -= 0.10
-    return round(min(max(score, 0.0), 1.0), 3)
+EMAIL_RE  = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}")
+PHONE_RE  = re.compile(r"\+?\d[\d\s\-()\\.]{7,}")
+PERSON_RE = re.compile(
+    r"(?:contact\s*(?:person|us|name)[:\s]+|(?:Mr|Ms|Mrs|Dr)\.?\s+)([A-Z][a-z]+ [A-Z][a-z]+)"
+)
 
-
-# ---------------------------------------------------------------------------
-# ENHANCED: Node.js crawler + BS4 fallback — now returns enriched profile
-# ---------------------------------------------------------------------------
 
 def extract_company_data(website: str, query: str = "") -> dict:
-    """
-    Crawl company website and return enriched profile dict.
-
-    Returns
-    -------
-    {
-        email, phone, content,
-        city, country_detected, linkedin_url,
-        incorporation_date, company_size, channel_type,
-        contact_person, contact_email, active_website,
-        industry_detected, product_type,
-    }
-    """
     empty = {
         "email": "", "phone": "", "content": "",
         "city": "", "country_detected": "", "linkedin_url": "",
@@ -465,58 +283,52 @@ def extract_company_data(website: str, query: str = "") -> dict:
     if not website:
         return empty
 
-    # --- Try Node.js crawler first ---
-    raw_html = ""
+    # Try Node.js crawler first
     try:
         resp = requests.post(
             f"{NODE_CRAWLER_URL}/crawl",
             json={"url": website},
-            timeout=20,
+            timeout=15,
         )
         if resp.status_code == 200:
-            data = resp.json()
-            result = dict(empty)
-            result["email"]   = data.get("email", "")
-            result["phone"]   = data.get("phone", "")
-            result["content"] = data.get("content", "")
-            raw_html          = data.get("html", "")
-            # Enrich with new extractors
-            text = result["content"]
-            result["city"]              = _detect_city(text, raw_html)
-            result["country_detected"]  = _detect_country_from_text(text)
-            result["linkedin_url"]      = _extract_linkedin(raw_html or text)
-            result["incorporation_date"] = _detect_incorporation(text)
-            result["company_size"]      = _detect_company_size(text)
-            result["channel_type"]      = _detect_channel_type(text)
-            result["industry_detected"] = _detect_industry(text)
-            result["product_type"]      = _detect_product_type(text, query)
-            result["active_website"]    = website
-            result["contact_email"]     = result["email"]
-            return result
+            data    = resp.json()
+            text    = data.get("content", "")
+            raw_html = data.get("html", "")
+            return {
+                "email":              data.get("email", ""),
+                "phone":              data.get("phone", ""),
+                "content":            text,
+                "city":               data.get("city", "") or _detect_city(text, raw_html),
+                "country_detected":   data.get("country_detected", "") or _detect_country_from_text(text),
+                "linkedin_url":       data.get("linkedin_url", "") or _extract_linkedin(raw_html),
+                "incorporation_date": data.get("incorporation_date", "") or _detect_incorporation(text),
+                "company_size":       data.get("company_size", "") or _detect_company_size(text),
+                "channel_type":       data.get("channel_type", "") or _detect_channel_type(text),
+                "contact_person":     data.get("contact_person", ""),
+                "contact_email":      data.get("contact_email", "") or data.get("email", ""),
+                "active_website":     website,
+                "industry_detected":  _detect_industry(text),
+                "product_type":       _detect_product_type(text, query),
+            }
     except Exception:
         pass
 
-    # --- BS4 fallback ---
-    EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}")
-    PHONE_RE = re.compile(r"\+?\d[\d\s\-()\\.]{7,}")
-    # Contact person: look for "Contact: Name" or "Mr./Ms. Name" patterns
-    PERSON_RE = re.compile(
-        r"(?:contact\s*(?:person|us|name)[:\s]+|(?:Mr|Ms|Mrs|Dr)\.?\s+)([A-Z][a-z]+ [A-Z][a-z]+)",
-    )
-
-    email, phone, content, person = "", "", "", ""
-    all_html = ""
-    for path in ["", "/contact", "/about", "/contact-us", "/about-us"]:
+    # BS4 fallback
+    email, phone, content, person, all_html = "", "", "", "", ""
+    for path in ["", "/contact", "/about"]:
         try:
             r = requests.get(
                 website.rstrip("/") + path,
-                timeout=10,
+                timeout=8,
                 headers={"User-Agent": "Mozilla/5.0"},
+                allow_redirects=True,
             )
             html_chunk = r.text
-            all_html += html_chunk
-            soup = BeautifulSoup(html_chunk, "html.parser")
-            text = soup.get_text(separator=" ", strip=True)
+            all_html  += html_chunk
+            soup       = BeautifulSoup(html_chunk, "html.parser")
+            for tag in soup(["script", "style", "nav", "footer"]):
+                tag.decompose()
+            text     = soup.get_text(separator=" ", strip=True)
             content += " " + text
             if not email:
                 m = EMAIL_RE.search(text)
@@ -534,26 +346,26 @@ def extract_company_data(website: str, query: str = "") -> dict:
             continue
 
     content = content[:5000].strip()
-    result = dict(empty)
-    result["email"]              = email
-    result["phone"]              = phone
-    result["content"]            = content
-    result["city"]               = _detect_city(content, all_html)
-    result["country_detected"]   = _detect_country_from_text(content)
-    result["linkedin_url"]       = _extract_linkedin(all_html)
-    result["incorporation_date"] = _detect_incorporation(content)
-    result["company_size"]       = _detect_company_size(content)
-    result["channel_type"]       = _detect_channel_type(content)
-    result["contact_person"]     = person
-    result["contact_email"]      = email
-    result["active_website"]     = website
-    result["industry_detected"]  = _detect_industry(content)
-    result["product_type"]       = _detect_product_type(content, query)
-    return result
+    return {
+        "email":              email,
+        "phone":              phone,
+        "content":            content,
+        "city":               _detect_city(content, all_html),
+        "country_detected":   _detect_country_from_text(content),
+        "linkedin_url":       _extract_linkedin(all_html),
+        "incorporation_date": _detect_incorporation(content),
+        "company_size":       _detect_company_size(content),
+        "channel_type":       _detect_channel_type(content),
+        "contact_person":     person,
+        "contact_email":      email,
+        "active_website":     website,
+        "industry_detected":  _detect_industry(content),
+        "product_type":       _detect_product_type(content, query),
+    }
 
 
 # ---------------------------------------------------------------------------
-# NLP + LLM scoring (updated to pass new fields through)
+# Scoring
 # ---------------------------------------------------------------------------
 
 def _score_company(query: str, company: dict) -> dict:
@@ -589,8 +401,8 @@ def _score_company(query: str, company: dict) -> dict:
         "low"
     )
 
-    summary      = ai_summary_for_query(query, combined, max_sentences=3) if combined.strip() else ""
-    products     = []
+    summary  = ai_summary_for_query(query, combined, max_sentences=3) if combined.strip() else ""
+    products = []
     llm_relevant = None
 
     if OPENROUTER_API_KEY and content and len(content) > 100:
@@ -606,23 +418,20 @@ def _score_company(query: str, company: dict) -> dict:
             try:
                 llm_data = analyze_company(query, content)
                 if llm_data.get("summary"):
-                    summary  = llm_data["summary"]
-                products     = llm_data.get("products", [])
-                llm_relevant = bool(llm_data.get("relevant", False))
-                llm_score    = int(llm_data.get("score", 0))
-                # Pull enriched fields from LLM if not already filled
-                if not company.get("channel_type") and llm_data.get("channel_type"):
-                    company["channel_type"] = llm_data["channel_type"]
-                if not company.get("industry_detected") and llm_data.get("industry"):
-                    company["industry_detected"] = llm_data["industry"]
-                if not company.get("company_size") and llm_data.get("company_size"):
-                    company["company_size"] = llm_data["company_size"]
-                if not company.get("city") and llm_data.get("city"):
-                    company["city"] = llm_data["city"]
-                if not company.get("country_detected") and llm_data.get("country"):
-                    company["country_detected"] = llm_data["country"]
-                if not company.get("incorporation_date") and llm_data.get("incorporation_date"):
-                    company["incorporation_date"] = llm_data["incorporation_date"]
+                    summary      = llm_data["summary"]
+                products         = llm_data.get("products", [])
+                llm_relevant     = bool(llm_data.get("relevant", False))
+                llm_score        = int(llm_data.get("score", 0))
+                for field, llm_field in [
+                    ("channel_type",       "channel_type"),
+                    ("industry_detected",  "industry"),
+                    ("company_size",       "company_size"),
+                    ("city",               "city"),
+                    ("country_detected",   "country"),
+                    ("incorporation_date", "incorporation_date"),
+                ]:
+                    if not company.get(field) and llm_data.get(llm_field):
+                        company[field] = llm_data[llm_field]
 
                 final_score = round(
                     (0.35 * sem_score) + (0.15 * kw_score) +
@@ -652,27 +461,27 @@ def _score_company(query: str, company: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Enrichment  (crawl + compliance check)
+# Enrichment
 # ---------------------------------------------------------------------------
 
 def enrich_company(company: dict, run_compliance: bool = False, query: str = "") -> dict:
     crawl = extract_company_data(company.get("website", ""), query=query)
-    # Core fields
-    company["email"]   = crawl.get("email", "")
-    company["phone"]   = crawl.get("phone", "")
-    company["content"] = crawl.get("content", "")
-    # NEW enriched fields
-    company["city"]               = crawl.get("city", "")
-    company["country_detected"]   = crawl.get("country_detected", "")
-    company["linkedin_url"]       = crawl.get("linkedin_url", "")
-    company["incorporation_date"] = crawl.get("incorporation_date", "")
-    company["company_size"]       = crawl.get("company_size", "")
-    company["channel_type"]       = crawl.get("channel_type", "")
-    company["contact_person"]     = crawl.get("contact_person", "")
-    company["contact_email"]      = crawl.get("contact_email", "")
-    company["active_website"]     = crawl.get("active_website", company.get("website", ""))
-    company["industry_detected"]  = crawl.get("industry_detected", "")
-    company["product_type"]       = crawl.get("product_type", "")
+    company.update({
+        "email":              crawl.get("email", ""),
+        "phone":              crawl.get("phone", ""),
+        "content":            crawl.get("content", ""),
+        "city":               crawl.get("city", ""),
+        "country_detected":   crawl.get("country_detected", ""),
+        "linkedin_url":       crawl.get("linkedin_url", ""),
+        "incorporation_date": crawl.get("incorporation_date", ""),
+        "company_size":       crawl.get("company_size", ""),
+        "channel_type":       crawl.get("channel_type", ""),
+        "contact_person":     crawl.get("contact_person", ""),
+        "contact_email":      crawl.get("contact_email", ""),
+        "active_website":     crawl.get("active_website", company.get("website", "")),
+        "industry_detected":  crawl.get("industry_detected", ""),
+        "product_type":       crawl.get("product_type", ""),
+    })
 
     if run_compliance:
         try:
@@ -685,25 +494,18 @@ def enrich_company(company: dict, run_compliance: bool = False, query: str = "")
         if check_company_compliance:
             try:
                 compliance = check_company_compliance(
-                    company.get("company", ""),
-                    company.get("website", ""),
-                )
+                    company.get("company", ""), company.get("website", ""))
                 company["compliance"] = compliance
-                # Pull incorporation_date from MCA result if available
                 mca = compliance.get("mca", {})
                 if mca.get("incorporation_date") and not company.get("incorporation_date"):
                     company["incorporation_date"] = mca["incorporation_date"]
             except Exception as exc:
-                logger.warning("Compliance check failed for %s: %s",
-                               company.get("company"), exc)
-                company["compliance"] = {
-                    "compliance_gaps": [], "compliance_score": 1.0,
-                    "checker_error": str(exc),
-                }
+                logger.warning("Compliance check failed: %s", exc)
+                company["compliance"] = {"compliance_gaps": [], "compliance_score": 1.0}
     return company
 
 
-def parallel_enrich(companies: list, max_workers: int = 5,
+def parallel_enrich(companies: list, max_workers: int = 4,
                     run_compliance: bool = False, query: str = "") -> list:
     enriched = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -733,9 +535,18 @@ def google_search(
     country_filter: str | None = None,
     trusted_only: bool = False,
 ) -> dict:
+    if not SERP_API_KEY or not SERP_API_KEY.strip():
+        logger.error("SERP_API_KEY is not set!")
+        return {
+            "companies": [], "next_start": start,
+            "has_more": False, "pages_scanned": 0,
+            "effective_country": country_filter or "",
+            "error": "SERP_API_KEY not configured",
+        }
+
     country_filter = (country_filter or "").strip().lower()
     search_query   = _sanitise_query(query, country_filter)
-    logger.info("Sanitised query: %s", search_query[:120])
+    logger.info("Searching: %s", search_query[:120])
 
     params: dict = {
         "engine":  "google",
@@ -757,10 +568,17 @@ def google_search(
             "companies": [], "next_start": start,
             "has_more": False, "pages_scanned": 0,
             "effective_country": country_filter,
+            "error": str(exc),
         }
 
     raw_results = results.get("organic_results", [])
-    logger.info("SerpAPI returned %d raw results", len(raw_results))
+    logger.info("SerpAPI returned %d raw results for query: %s", len(raw_results), search_query)
+
+    if not raw_results:
+        # Log full response for debugging
+        logger.warning("Empty results. Full response keys: %s", list(results.keys()))
+        error_info = results.get("error", results.get("search_information", {}))
+        logger.warning("SerpAPI error info: %s", error_info)
 
     candidates = []
     rejected   = []
@@ -770,14 +588,10 @@ def google_search(
         if not link:
             continue
         if not _is_company_url(link, title):
-            rejected.append((link[:70], "classifier"))
-            continue
-        if trusted_only and _FREE_HOST_RE.search(urlparse(link).netloc.lower()):
-            rejected.append((link[:70], "free-host"))
+            rejected.append(link[:60])
             continue
         domain = urlparse(link).netloc.lower().replace("www.", "")
         if exclude_domains and domain in exclude_domains:
-            rejected.append((link[:70], "duplicate"))
             continue
         candidates.append({
             "company": _clean_title(title),
@@ -786,9 +600,8 @@ def google_search(
             "domain":  domain,
         })
 
-    if rejected:
-        logger.info("Rejected %d/%d results. Sample: %s",
-                    len(rejected), len(raw_results), rejected[:3])
+    logger.info("Candidates after filter: %d / %d (rejected: %d)",
+                len(candidates), len(raw_results), len(rejected))
 
     candidates = candidates[:max_results]
 
@@ -801,18 +614,18 @@ def google_search(
             scored.append(_score_company(query, c))
         except Exception as exc:
             logger.warning("Scoring failed for %s: %s", c.get("website"), exc)
-            for field in ["semantic_score", "keyword_score", "domain_authority",
-                          "contact_presence", "final_score"]:
-                c.setdefault(field, 0.0)
+            c.setdefault("semantic_score",   0.0)
+            c.setdefault("keyword_score",    0.0)
+            c.setdefault("domain_authority", 0.0)
+            c.setdefault("contact_presence", 0.0)
+            c.setdefault("final_score",      0.0)
             c.setdefault("importance",       "low")
             c.setdefault("summary",          c.get("snippet", ""))
             c.setdefault("products",         [])
             c.setdefault("llm_relevant",     None)
-            # New fields default
-            for f in ["city", "country_detected", "linkedin_url",
-                      "incorporation_date", "company_size", "channel_type",
-                      "contact_person", "contact_email", "active_website",
-                      "industry_detected", "product_type"]:
+            for f in ["city", "country_detected", "linkedin_url", "incorporation_date",
+                      "company_size", "channel_type", "contact_person", "contact_email",
+                      "active_website", "industry_detected", "product_type"]:
                 c.setdefault(f, "")
             scored.append(c)
 
@@ -828,7 +641,7 @@ def google_search(
 
 
 # ---------------------------------------------------------------------------
-# LinkedIn discovery (unchanged)
+# LinkedIn discovery
 # ---------------------------------------------------------------------------
 
 def linkedin_discovery(
@@ -838,10 +651,11 @@ def linkedin_discovery(
     max_results: int = 5,
     exclude_domains: set | None = None,
 ) -> list:
+    if not SERP_API_KEY:
+        return []
+
     country_filter = (country_filter or "").strip().lower()
     search_q = f"{query} site:linkedin.com/in"
-    if country_filter and country_filter not in query.lower():
-        search_q = f"{query} {country_filter} site:linkedin.com/in"
 
     params: dict = {
         "engine":  "google",
@@ -862,24 +676,16 @@ def linkedin_discovery(
 
     people = []
     for r in results.get("organic_results", []):
-        link = r.get("link", "")
-        if exclude_domains and urlparse(link).netloc.lower() in exclude_domains:
-            continue
         people.append({
             "name":    r.get("title", ""),
-            "profile": link,
+            "profile": r.get("link", ""),
             "snippet": r.get("snippet", ""),
         })
     return people
 
 
-# ---------------------------------------------------------------------------
-# Legacy helper
-# ---------------------------------------------------------------------------
-
 def smart_google_search(queries: list) -> tuple:
-    all_companies = []
-    all_people    = []
+    all_companies, all_people = [], []
     for q in queries:
         result = google_search(q)
         all_companies.extend(result.get("companies", []))
