@@ -865,3 +865,53 @@ def test_search(query: str = "electronics importers india"):
         "query": query,
         "result": google_search(query, max_results=3),
     }
+
+
+# ---------------------------------------------------------------------------
+# Deep Research endpoint
+# ---------------------------------------------------------------------------
+
+class ResearchRequest(BaseModel):
+    company: str
+    website: str = ""
+    country: str = "india"
+    query:   str = ""
+
+@app.post("/research/deep")
+def deep_research_endpoint(body: ResearchRequest,
+                           user: dict = Depends(get_current_user)):
+    try:
+        from deep_research import deep_research
+    except ImportError:
+        from .deep_research import deep_research
+    result = deep_research(
+        company=body.company,
+        website=body.website,
+        country=body.country,
+        query=body.query,
+    )
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Verification endpoint
+# ---------------------------------------------------------------------------
+
+class VerifyRequest(BaseModel):
+    email:   str = ""
+    phone:   str = ""
+    website: str = ""
+
+@app.post("/verify/lead")
+def verify_lead_endpoint(body: VerifyRequest,
+                         user: dict = Depends(get_current_user)):
+    try:
+        from verifier import verify_lead
+    except ImportError:
+        from .verifier import verify_lead
+    result = verify_lead({
+        "email":   body.email,
+        "phone":   body.phone,
+        "website": body.website,
+    })
+    return result
