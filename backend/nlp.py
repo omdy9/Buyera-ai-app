@@ -1,10 +1,12 @@
 """
-nlp.py  –  Fixed for Render free tier
-Model loads lazily on first use instead of at import time.
-This keeps startup RAM under 512MB.
+nlp.py  — keyword-only scoring (no sentence-transformers)
+Removed model loading entirely to keep Render free tier under memory/download limits.
+All semantic functions fall back to fast TF-IDF / keyword matching.
 """
 import re
+import math
 import logging
+from collections import Counter
 
 logger = logging.getLogger(__name__)
 
@@ -22,24 +24,6 @@ STOPWORDS = {
     "from", "of", "by", "with", "near", "me", "company", "companies",
     "service", "services"
 }
-
-# ---------------------------------------------------------------------------
-# Lazy model loader — only downloads/loads on first actual use
-# ---------------------------------------------------------------------------
-_model = None
-
-def _get_model():
-    global _model
-    if _model is None:
-        try:
-            from sentence_transformers import SentenceTransformer
-            logger.info("Loading sentence-transformers model...")
-            _model = SentenceTransformer("all-MiniLM-L6-v2")
-            logger.info("Model loaded.")
-        except Exception as exc:
-            logger.warning("sentence-transformers not available: %s", exc)
-            _model = False   # Mark as unavailable so we don't retry every call
-    return _model if _model else None
 
 
 # ---------------------------------------------------------------------------
@@ -61,34 +45,6 @@ def extract_fields(text):
     return service, country, urgency, budget
 
 
-def score_match(text, service_keyword):
-    model = _get_model()
-    if not model:
-        return _keyword_fallback(text, service_keyword)
-    try:
-        from sentence_transformers import util
-        e1 = model.encode([text], convert_to_tensor=True)
-        e2 = model.encode([service_keyword], convert_to_tensor=True)
-        return round(float(util.cos_sim(e1, e2).item()), 3)
-    except Exception:
-        return _keyword_fallback(text, service_keyword)
-
-
-def semantic_similarity(query, text):
-    if not query or not text:
-        return 0.0
-    model = _get_model()
-    if not model:
-        return keyword_match_ratio(query, text)
-    try:
-        from sentence_transformers import util
-        eq = model.encode([query.strip()],       convert_to_tensor=True)
-        et = model.encode([text.strip()[:4000]], convert_to_tensor=True)
-        return round(float(util.cos_sim(eq, et).item()), 3)
-    except Exception:
-        return keyword_match_ratio(query, text)
-
-
 def _query_tokens(query):
     return [
         t for t in re.findall(r"[a-zA-Z0-9]+", query.lower())
@@ -96,11 +52,8 @@ def _query_tokens(query):
     ]
 
 
-def _keyword_fallback(query, text):
-    """TF-IDF cosine similarity — zero dependencies, used when model unavailable."""
-    import math
-    from collections import Counter
-
+def _tfidf_cosine(query: str, text: str) -> float:
+    """TF-IDF cosine similarity — zero dependencies."""
     def _tok(t):
         return [w for w in re.findall(r"[a-zA-Z0-9]+", t.lower())
                 if len(w) > 2 and w not in STOPWORDS]
@@ -110,9 +63,9 @@ def _keyword_fallback(query, text):
     if not q_tok or not t_tok:
         return keyword_match_ratio(query, text)
 
-    vocab    = set(q_tok) | set(t_tok)
-    qc       = Counter(q_tok)
-    tc       = Counter(t_tok)
+    vocab = set(q_tok) | set(t_tok)
+    qc    = Counter(q_tok)
+    tc    = Counter(t_tok)
 
     def vec(counts, total):
         return {
@@ -129,6 +82,16 @@ def _keyword_fallback(query, text):
     if qn == 0 or tn == 0:
         return 0.0
     return round(dot / (qn * tn), 3)
+
+
+def score_match(text, service_keyword):
+    return _tfidf_cosine(service_keyword, text)
+
+
+def semantic_similarity(query, text):
+    if not query or not text:
+        return 0.0
+    return _tfidf_cosine(query, text)
 
 
 def keyword_match_ratio(query, text):
@@ -153,29 +116,12 @@ def ai_summary_for_query(query, content, max_sentences=3):
     if not sentences:
         return cleaned[:500]
 
-    model = _get_model()
-    if not model:
-        # Fallback: return first N sentences that contain query tokens
-        tokens = _query_tokens(query)
-        scored = []
-        for s in sentences[:40]:
-            sl   = s.lower()
-            hits = sum(1 for t in tokens if t in sl)
-            scored.append((hits, s))
-        scored.sort(reverse=True)
-        return " ".join(s for _, s in scored[:max_sentences])[:700]
-
-    try:
-        from sentence_transformers import util
-        sentences = sentences[:120]
-        top_k     = min(max_sentences, len(sentences))
-        emb_q     = model.encode([query],     convert_to_tensor=True)
-        emb_s     = model.encode(sentences,   convert_to_tensor=True)
-        sims      = util.cos_sim(emb_q, emb_s)[0]
-        ranked    = sorted(range(len(sentences)),
-                           key=lambda i: float(sims[i]),
-                           reverse=True)[:top_k]
-        ranked.sort()
-        return " ".join(sentences[i] for i in ranked)[:700]
-    except Exception:
-        return " ".join(sentences[:max_sentences])[:700]
+    # Score sentences by keyword overlap with query
+    tokens = _query_tokens(query)
+    scored = []
+    for s in sentences[:40]:
+        sl   = s.lower()
+        hits = sum(1 for t in tokens if t in sl)
+        scored.append((hits, s))
+    scored.sort(reverse=True)
+    return " ".join(s for _, s in scored[:max_sentences])[:700]
