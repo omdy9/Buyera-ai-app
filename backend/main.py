@@ -845,3 +845,23 @@ def clear(user: dict = Depends(get_current_user)):
             for jid in to_del:
                 del SEARCH_JOBS[jid]
         return {"status": "cleared", "scope": user["user_id"]}
+
+
+# ---------------------------------------------------------------------------
+# Debug endpoint — test SERP API directly
+# ---------------------------------------------------------------------------
+
+@app.get("/admin/test-search")
+def test_search(query: str = "electronics importers india"):
+    """Call SERP API directly and return raw results for debugging."""
+    try:
+        from scraper_google import google_search, SERP_API_KEY
+    except ImportError:
+        from .scraper_google import google_search, SERP_API_KEY
+
+    return {
+        "serp_api_key_set": bool(SERP_API_KEY and SERP_API_KEY.strip()),
+        "serp_api_key_preview": SERP_API_KEY[:8] + "..." if SERP_API_KEY else "NOT SET",
+        "query": query,
+        "result": google_search(query, max_results=3),
+    }
