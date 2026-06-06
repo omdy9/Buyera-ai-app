@@ -524,6 +524,166 @@ label, p, span, div,
     color: white !important;
 }
 
+
+/* =====================================================
+   DROPDOWN + BUTTON FIXES
+   ===================================================== */
+
+/* Selectbox trigger box — white background, black text */
+div[data-baseweb="select"],
+div[data-baseweb="select"] > div,
+div[data-baseweb="select"] > div > div,
+.stSelectbox div[data-baseweb="select"],
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+    background-color: white !important;
+    color: #111827 !important;
+    border-color: #e2e8f0 !important;
+}
+
+/* Selectbox selected value text */
+div[data-baseweb="select"] span,
+div[data-baseweb="select"] [class*="placeholder"],
+div[data-baseweb="select"] [class*="singleValue"],
+div[data-baseweb="select"] input {
+    color: #111827 !important;
+    -webkit-text-fill-color: #111827 !important;
+    background: transparent !important;
+}
+
+/* Dropdown popup menu — white background */
+ul[role="listbox"],
+div[role="listbox"],
+[data-baseweb="popover"],
+[data-baseweb="menu"],
+[data-baseweb="popover"] > div,
+[data-baseweb="menu"] > div,
+[data-baseweb="menu"] ul {
+    background-color: white !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
+}
+
+/* Dropdown individual options */
+ul[role="listbox"] li,
+[data-baseweb="menu"] li,
+[role="option"],
+div[role="option"],
+li[role="option"] {
+    background-color: white !important;
+    color: #111827 !important;
+}
+ul[role="listbox"] li *,
+[role="option"] *,
+div[role="option"] *,
+li[role="option"] * {
+    color: #111827 !important;
+    background-color: transparent !important;
+}
+
+/* Dropdown option hover */
+ul[role="listbox"] li:hover,
+[role="option"]:hover,
+div[role="option"]:hover,
+li[role="option"]:hover,
+[aria-selected="true"][role="option"],
+[data-baseweb="menu"] li:hover {
+    background-color: #eff6ff !important;
+    color: #1e40af !important;
+}
+ul[role="listbox"] li:hover *,
+[role="option"]:hover *,
+div[role="option"]:hover * {
+    color: #1e40af !important;
+}
+
+/* =====================================================
+   BUTTON FIXES — white background, dark text
+   (for non-primary action buttons)
+   ===================================================== */
+
+/* Default (secondary) buttons — white bg, black text */
+.stButton > button[kind="secondary"],
+.stButton > button:not([kind="primary"]) {
+    background: white !important;
+    color: #111827 !important;
+    border: 1.5px solid #d1d5db !important;
+}
+.stButton > button[kind="secondary"]:hover,
+.stButton > button:not([kind="primary"]):hover {
+    background: #f8fafc !important;
+    color: #111827 !important;
+    border-color: #1e40af !important;
+}
+
+/* Primary buttons stay blue with white text */
+.stButton > button[kind="primary"],
+div[data-testid="stButton"] > button[kind="primary"] {
+    background: #1e40af !important;
+    color: white !important;
+    border: none !important;
+}
+.stButton > button[kind="primary"]:hover {
+    background: #1d4ed8 !important;
+    color: white !important;
+}
+
+/* Search button specifically */
+.search-btn .stButton > button {
+    background: #1e40af !important;
+    color: white !important;
+    border: none !important;
+}
+
+/* Refresh / logout / clear / small action buttons — white bg dark text */
+button[data-testid="baseButton-secondary"],
+.stButton > button[data-testid="baseButton-secondary"] {
+    background: white !important;
+    color: #111827 !important;
+    border: 1.5px solid #d1d5db !important;
+}
+
+/* Logout button */
+div[data-testid="stButton"]:has(button#logout_btn) button,
+#logout_btn {
+    background: white !important;
+    color: #374151 !important;
+    border: 1.5px solid #d1d5db !important;
+}
+
+/* Download button */
+.stDownloadButton > button {
+    background: white !important;
+    color: #111827 !important;
+    border: 1.5px solid #d1d5db !important;
+    font-weight: 500 !important;
+}
+.stDownloadButton > button:hover {
+    background: #f8fafc !important;
+    border-color: #1e40af !important;
+    color: #1e40af !important;
+}
+
+/* Compliance check button — keep primary style */
+button[key="enrich_btn"],
+div[data-testid="stButton"]:has(button[key="enrich_btn"]) button {
+    background: #1e40af !important;
+    color: white !important;
+}
+
+/* Tab selected stays white text */
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+    color: white !important;
+    background: #1e40af !important;
+}
+
+/* Multiselect tags */
+[data-baseweb="tag"] {
+    background: #eff6ff !important;
+    color: #1e40af !important;
+}
+[data-baseweb="tag"] span { color: #1e40af !important; }
+
 </style>
 """, unsafe_allow_html=True)
 
