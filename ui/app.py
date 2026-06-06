@@ -367,6 +367,163 @@ label, .stSelectbox label, .stTextInput label,
     color: #111827 !important;
 }
 
+
+/* =====================================================
+   GLOBAL TEXT COLOR FIXES — all text black on white
+   ===================================================== */
+
+/* Body and app background */
+.stApp, .stApp * {
+    color: #111827;
+}
+
+/* Input text — typing color */
+.stTextInput input,
+.stTextInput input::placeholder,
+input[type="text"],
+input[type="password"],
+textarea {
+    color: #111827 !important;
+    background: white !important;
+    -webkit-text-fill-color: #111827 !important;
+}
+.stTextInput input::placeholder {
+    color: #9ca3af !important;
+    -webkit-text-fill-color: #9ca3af !important;
+}
+
+/* Selectbox text */
+.stSelectbox div[data-baseweb="select"] span,
+.stSelectbox div[data-baseweb="select"] div,
+.stSelectbox [data-testid="stMarkdownContainer"] p,
+div[data-baseweb="select"] > div {
+    color: #111827 !important;
+    background-color: white !important;
+}
+
+/* Selectbox dropdown options */
+ul[role="listbox"] li,
+ul[role="listbox"] li span,
+div[role="option"],
+div[role="option"] span {
+    color: #111827 !important;
+    background: white !important;
+}
+ul[role="listbox"] li:hover,
+div[role="option"]:hover {
+    background: #eff6ff !important;
+    color: #1e40af !important;
+}
+
+/* All labels — every widget */
+label, p, span, div,
+[data-testid="stWidgetLabel"],
+[data-testid="stWidgetLabel"] p,
+.stMarkdown p,
+.stMarkdown span,
+.stCheckbox label span,
+.stRadio label span,
+[data-baseweb="checkbox"] span,
+[data-baseweb="radio"] span {
+    color: #111827 !important;
+}
+
+/* Metric cards — keep numbers dark */
+[data-testid="stMetricValue"] {
+    color: #111827 !important;
+}
+[data-testid="stMetricLabel"] {
+    color: #6b7280 !important;
+}
+
+/* Caption / small text */
+.stCaption, [data-testid="stCaptionContainer"] p {
+    color: #6b7280 !important;
+}
+
+/* Tab text */
+[data-testid="stTabs"] [role="tab"] {
+    color: #374151 !important;
+    font-weight: 600 !important;
+}
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+    color: white !important;
+    background: #1e40af !important;
+}
+
+/* Expander header */
+[data-testid="stExpander"] details summary p,
+[data-testid="stExpander"] summary p {
+    color: #111827 !important;
+    font-weight: 600 !important;
+}
+
+/* Slider labels and values */
+.stSlider label,
+.stSlider [data-testid="stWidgetLabel"] p,
+.stSlider div[data-testid="stTickBarMin"],
+.stSlider div[data-testid="stTickBarMax"],
+[data-testid="stTickBar"] span {
+    color: #111827 !important;
+}
+
+/* Radio button labels */
+.stRadio > div label p,
+.stRadio > div [data-testid="stMarkdownContainer"] p {
+    color: #111827 !important;
+    font-weight: 500 !important;
+}
+
+/* Checkbox labels */
+.stCheckbox > label > div p,
+.stCheckbox [data-testid="stMarkdownContainer"] p {
+    color: #111827 !important;
+}
+
+/* Info/success/warning/error boxes */
+[data-testid="stAlert"] p,
+[data-testid="stAlert"] div {
+    color: #111827 !important;
+}
+
+/* Download button text */
+.stDownloadButton button {
+    color: #111827 !important;
+    background: white !important;
+    border: 1.5px solid #e2e8f0 !important;
+}
+.stDownloadButton button:hover {
+    background: #f8fafc !important;
+    border-color: #1e40af !important;
+}
+
+/* Override the blue highlight issue from screenshot 1 */
+::selection {
+    background: #bfdbfe;
+    color: #1e40af;
+}
+
+/* Sidebar and main area text */
+[data-testid="stSidebar"] * { color: #111827 !important; }
+
+/* Dataframe text */
+[data-testid="stDataFrame"] table,
+[data-testid="stDataFrame"] th,
+[data-testid="stDataFrame"] td {
+    color: #111827 !important;
+}
+
+/* Toast notifications */
+[data-testid="stToast"] p { color: #111827 !important; }
+
+/* Buttons keep white text */
+.stButton > button {
+    color: white !important;
+}
+.stButton > button:hover {
+    color: white !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
