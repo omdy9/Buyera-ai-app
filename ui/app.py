@@ -320,6 +320,53 @@ hr { border-color: #e2e8f0 !important; margin: 12px 0 !important; }
 .empty-state .icon { font-size: 3.5rem; margin-bottom: 12px; }
 .empty-state h3 { color: #64748b; font-size: 1.1rem; margin: 0 0 6px; }
 .empty-state p  { font-size: 0.85rem; margin: 0; }
+
+/* All input/widget labels black */
+label, .stSelectbox label, .stTextInput label,
+.stCheckbox label, .stSlider label, .stRadio label,
+.stMultiSelect label, .stTextArea label,
+[data-testid="stWidgetLabel"] p,
+[data-testid="stWidgetLabel"],
+.stSlider [data-testid="stWidgetLabel"],
+.stCheckbox [data-testid="stWidgetLabel"],
+.stRadio [data-testid="stWidgetLabel"],
+.element-container label {
+    color: #111827 !important;
+    font-weight: 600 !important;
+}
+
+/* Expander header text black */
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary {
+    color: #111827 !important;
+    font-weight: 600 !important;
+}
+
+/* Tab labels */
+[data-testid="stTabs"] [role="tab"] {
+    color: #111827 !important;
+}
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+    color: white !important;
+}
+
+/* Radio options */
+.stRadio div[role="radiogroup"] label {
+    color: #111827 !important;
+    font-weight: 500 !important;
+}
+
+/* Slider label */
+.stSlider > label {
+    color: #111827 !important;
+    font-weight: 600 !important;
+}
+
+/* Section headers inside expanders */
+.stMarkdown p, .stMarkdown strong {
+    color: #111827 !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
