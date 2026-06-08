@@ -869,6 +869,12 @@ ALL_COLUMNS = {
     "domain_authority":   "Website Authority",
     "searched_query":     "Search Query Used",
     "created_at":         "Date Found",
+    "annual_turnover":    "Annual Turnover / Revenue",
+    "certifications":     "Certifications (ISO, BIS etc)",
+    "export_markets":     "Export Markets",
+    "usp":                "Unique Selling Point",
+    "key_customers":      "Key Customers / Clients",
+    "llm_score":          "AI Relevance Score",
 }
 
 DEFAULT_COLUMNS = [
@@ -1133,7 +1139,8 @@ if company_leads or st.session_state.active_job_id:
                               "iec_found","mca_active","mca_company_type"],
             "📞 Contact Details": ["contact_person","contact_email","email","phone","linkedin_url"],
             "🌐 Online Presence": ["active_website"],
-            "🤖 AI Analysis": ["ai_summary","products"],
+            "🤖 AI Analysis": ["ai_summary","products","usp","key_customers"],
+            "💰 Business Details": ["annual_turnover","certifications","export_markets","llm_score"],
             "🔍 Search Info": ["searched_query","created_at"],
         }
 
@@ -1361,6 +1368,12 @@ def _show_cards(leads: list):
         if isinstance(products, list) and products:
             prod_str = ", ".join(str(p) for p in products[:4])
 
+        turnover  = str(row.get("annual_turnover", ""))
+        certs     = row.get("certifications", [])
+        exports   = row.get("export_markets", [])
+        usp       = str(row.get("usp", ""))[:120]
+        key_cust  = row.get("key_customers", [])
+
         links_html = ""
         if website and website not in ("nan", ""):
             links_html += f'<a class="card-link" href="{website}" target="_blank">🌐 Website</a>'
@@ -1370,6 +1383,16 @@ def _show_cards(leads: list):
             links_html += f'<span class="card-link">📞 {phone}</span>'
         if linkedin and linkedin not in ("nan",""):
             links_html += f'<a class="card-link" href="{linkedin}" target="_blank">💼 LinkedIn</a>'
+
+        extra_html = ""
+        if turnover and turnover not in ("nan",""):
+            extra_html += f'<span class="card-tag" style="background:#f0fdf4;color:#166534">💰 {turnover}</span>'
+        if isinstance(certs, list) and certs:
+            extra_html += f'<span class="card-tag" style="background:#eff6ff;color:#1e40af">✅ {", ".join(certs[:3])}</span>'
+        if isinstance(exports, list) and exports:
+            extra_html += f'<span class="card-tag" style="background:#fdf4ff;color:#7e22ce">🌍 Exports: {", ".join(exports[:3])}</span>'
+        if isinstance(key_cust, list) and key_cust:
+            extra_html += f'<span class="card-tag" style="background:#fff7ed;color:#9a3412">👥 {", ".join(key_cust[:2])}</span>' 
 
         tags_html = "".join(f'<span class="card-tag">{t}</span>' for t in tags)
 
@@ -1389,6 +1412,8 @@ def _show_cards(leads: list):
           {'<div class="card-tags">'+tags_html+'</div>' if tags_html else ''}
           {'<div class="card-summary">'+summary+'</div>' if summary and summary != "nan" else ''}
           {'<div class="card-summary" style="color:#1e40af;font-size:0.78rem">📦 '+prod_str+'</div>' if prod_str else ''}
+          {'<div class="card-summary" style="color:#6b7280;font-size:0.78rem;font-style:italic">💡 '+usp+'</div>' if usp and usp != "nan" else ''}
+          {'<div class="card-tags" style="margin-top:6px">'+extra_html+'</div>' if extra_html else ''}
           {'<div class="card-links">'+links_html+'</div>' if links_html else ''}
         </div>
         """, unsafe_allow_html=True)
