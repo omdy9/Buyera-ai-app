@@ -945,6 +945,23 @@ with lcol:
         st.rerun()
 
 # ===========================================================================
+# SESSION RESTORE — reload last active job after browser refresh / session reset
+# ===========================================================================
+if st.session_state.auth_token and not st.session_state.active_job_id:
+    try:
+        rj = _api_get("/jobs/recent", timeout=10)
+        if rj.status_code == 200:
+            recent = rj.json()
+            # Find the most recent completed or running job
+            for job in recent[:5]:
+                if job.get("status") in ("completed", "running", "queued"):
+                    st.session_state.active_job_id = job.get("job_id", "")
+                    st.session_state.active_query  = job.get("query", "")
+                    break
+    except Exception:
+        pass
+
+# ===========================================================================
 # HERO SEARCH SECTION
 # ===========================================================================
 st.markdown("""
