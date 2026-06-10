@@ -282,6 +282,7 @@ def _run_discovery(
     country_filter: str = "",
     trusted_only: bool = False,
     user_id: str = ANONYMOUS,
+    quality_threshold: int = 0,
 ) -> dict:
     query          = query.strip()
     country_filter = (country_filter or "").strip().lower()
@@ -317,6 +318,7 @@ def _run_discovery(
             query, max_results=want, start=next_start,
             exclude_domains=known_domains, max_pages=1,
             country_filter=country_filter, trusted_only=trusted_only,
+            quality_threshold=quality_threshold,
         )
 
         companies      = result.get("companies", [])
@@ -389,14 +391,15 @@ def _run_discovery(
 
 def _run_discovery_job(job_id: str, query: str, continue_search: bool,
                        scan_all_remaining: bool, country_filter: str,
-                       trusted_only: bool, user_id: str) -> None:
+                       trusted_only: bool, user_id: str,
+                       quality_threshold: int = 0) -> None:
     _upsert_job(job_id, status="running", started_at=datetime.utcnow())
     try:
         result = _run_discovery(
             query=query, continue_search=continue_search,
             scan_all_remaining=scan_all_remaining, search_job_id=job_id,
             country_filter=country_filter, trusted_only=trusted_only,
-            user_id=user_id,
+            user_id=user_id, quality_threshold=quality_threshold,
         )
         _upsert_job(job_id, status="completed", finished_at=datetime.utcnow(), **result)
         logger.info("Job %s (user=%s) completed: saved=%s", job_id, user_id, result.get("saved_total"))
@@ -485,12 +488,14 @@ def start_search(
     scan_all_remaining: bool = False,
     country_filter: str = "",
     trusted_only: bool = False,
+    quality_threshold: int = 0,
     user: dict = Depends(get_current_user),
 ):
     query = query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="query is required")
     country_filter = (country_filter or "").strip().lower()
+    quality_threshold = max(0, min(int(quality_threshold), 3))
     user_id = user["user_id"]
     _evict_old_jobs()
 
@@ -500,6 +505,7 @@ def start_search(
         "user_id": user_id,
         "continue_search": continue_search, "scan_all_remaining": scan_all_remaining,
         "country_filter": country_filter, "trusted_only": trusted_only,
+        "quality_threshold": quality_threshold,
         "created_at": datetime.utcnow(), "started_at": None, "finished_at": None,
         "saved": 0, "linkedin_saved": 0, "saved_total": 0,
         "has_more": True, "next_start": 0, "pages_scanned": 0,
@@ -511,7 +517,7 @@ def start_search(
     worker = threading.Thread(
         target=_run_discovery_job,
         args=(job_id, query, continue_search, scan_all_remaining,
-              country_filter, trusted_only, user_id),
+              country_filter, trusted_only, user_id, quality_threshold),
         daemon=True,
     )
     worker.start()
@@ -915,3 +921,84 @@ def verify_lead_endpoint(body: VerifyRequest,
         "website": body.website,
     })
     return result
+
+
+# ---------------------------------------------------------------------------
+# Directory extraction endpoint
+# ---------------------------------------------------------------------------
+
+class DirectoryExtractRequest(BaseModel):
+    website:  str
+    content:  str = ""
+    job_id:   str = ""
+    query:    str = ""
+
+@app.post("/leads/extract-directory")
+def extract_directory(body: DirectoryExtractRequest,
+                      user: dict = Depends(get_current_user)):
+    """Extract individual company leads from a directory page."""
+    try:
+        from llm import extract_directory_companies
+    except ImportError:
+        from .llm import extract_directory_companies
+
+    # If no content passed, crawl the page
+    content = body.content
+    if not content and body.website:
+        try:
+            from scraper_google import deep_crawl
+        except ImportError:
+            from .scraper_google import deep_crawl
+        crawl   = deep_crawl(body.website, query=body.query)
+        content = crawl.get("content", "")
+
+    companies = extract_directory_companies(body.website, content)
+
+    # Save extracted companies as leads
+    saved = 0
+    if companies:
+        from datetime import datetime
+        docs = []
+        for c in companies:
+            if not c.get("company"):
+                continue
+            docs.append({
+                "user_id":        user["user_id"],
+                "company":        str(c.get("company","")),
+                "website":        str(c.get("website","")),
+                "phone":          str(c.get("phone","")),
+                "email":          str(c.get("email","")),
+                "city":           str(c.get("city","")),
+                "products":       [c.get("products","")] if c.get("products") else [],
+                "ai_summary":     str(c.get("snippet","")),
+                "source":         "directory_extracted",
+                "directory_source": body.website,
+                "searched_query": body.query,
+                "final_score":    0.3,
+                "importance":     "low",
+                "compliance_gaps": [],
+                "created_at":     datetime.utcnow(),
+            })
+        if docs:
+            leads_collection.insert_many(docs)
+            saved = len(docs)
+
+    return {
+        "status":    "done",
+        "extracted": len(companies),
+        "saved":     saved,
+        "companies": companies[:50],
+    }
+
+
+# ---------------------------------------------------------------------------
+# LLM providers status endpoint
+# ---------------------------------------------------------------------------
+
+@app.get("/llm/providers")
+def llm_providers_status():
+    try:
+        from llm import get_all_providers
+    except ImportError:
+        from .llm import get_all_providers
+    return get_all_providers()
