@@ -12,6 +12,14 @@ import logging
 from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
 
+# Keep-alive + job persistence
+try:
+    from keep_alive import start_keep_alive
+    from job_store  import save_job, load_job, load_recent_jobs
+except ImportError:
+    from .keep_alive import start_keep_alive
+    from .job_store  import save_job, load_job, load_recent_jobs
+
 if __package__:
     from .database import leads_collection, search_state_collection
     from .nlp import extract_fields, score_match, semantic_similarity
@@ -98,6 +106,12 @@ def ensure_indexes():
     except Exception as exc:
         logger.warning("Index creation skipped: %s", exc)
 
+    # Start keep-alive ping (prevents Render free tier sleep)
+    try:
+        start_keep_alive()
+    except Exception as e:
+        logger.warning("Keep-alive failed to start: %s", e)
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -165,6 +179,11 @@ def _upsert_job(job_id: str, **fields) -> None:
         if not job:
             return
         job.update(fields)
+    # Persist to MongoDB (non-blocking)
+    try:
+        save_job(job)
+    except Exception:
+        pass
 
 
 def _append_job_result(job_id: str, lead_doc: dict) -> None:
@@ -1002,3 +1021,16 @@ def llm_providers_status():
     except ImportError:
         from .llm import get_all_providers
     return get_all_providers()
+
+
+@app.get("/jobs/recent")
+def recent_jobs(user: dict = Depends(get_current_user)):
+    """Return the user's recent search jobs (survives restarts)."""
+    jobs = load_recent_jobs(user["user_id"], limit=20)
+    # Also include in-memory jobs not yet persisted
+    with SEARCH_JOBS_LOCK:
+        mem_ids = {j["job_id"] for j in jobs}
+        for jid, j in SEARCH_JOBS.items():
+            if j.get("user_id") == user["user_id"] and jid not in mem_ids:
+                jobs.append({k: v for k, v in j.items() if k != "results"})
+    return sorted(jobs, key=lambda x: str(x.get("created_at","")), reverse=True)[:20]
