@@ -1160,17 +1160,24 @@ if company_leads or st.session_state.active_job_id:
         }
 
         new_visible = []
+        seen_keys = set()
         for group_name, group_cols in col_groups.items():
             st.markdown(f"**{group_name}**")
             gcols = st.columns(4)
+            # make a safe group prefix from the group name
+            grp_prefix = re.sub(r"[^a-z0-9]", "_", group_name.lower())[:12]
             for i, col_key in enumerate(group_cols):
+                widget_key = f"col_{grp_prefix}_{col_key}"
+                if widget_key in seen_keys:
+                    widget_key = f"col_{grp_prefix}_{col_key}_{i}"
+                seen_keys.add(widget_key)
                 with gcols[i % 4]:
                     checked = st.checkbox(
                         ALL_COLUMNS.get(col_key, col_key),
                         value=(col_key in st.session_state.visible_cols),
-                        key=f"col_{col_key}",
+                        key=widget_key,
                     )
-                    if checked:
+                    if checked and col_key not in new_visible:
                         new_visible.append(col_key)
 
         col_btn1, col_btn2 = st.columns(2)
