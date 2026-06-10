@@ -748,7 +748,11 @@ def _show_login_page():
                             st.session_state.auth_role     = d.get("role", "user")
                             st.rerun()
                         else:
-                            st.error(d.get("detail", "Sign in failed. Check your details."))
+                            try:
+                                err = r.json().get("detail", "Sign in failed. Check your details.")
+                            except Exception:
+                                err = f"Sign in failed (HTTP {r.status_code})"
+                            st.error(err)
                     except Exception as e:
                         st.error(f"Can't connect to server: {e}")
 
@@ -780,7 +784,11 @@ def _show_login_page():
                             st.session_state.auth_role     = d.get("role", "user")
                             st.rerun()
                         else:
-                            st.error(r.json().get("detail", "Registration failed."))
+                            try:
+                                err = r.json().get("detail", "Registration failed.")
+                            except Exception:
+                                err = f"Registration failed (HTTP {r.status_code})"
+                            st.error(err)
                     except Exception as e:
                         st.error(f"Can't connect to server: {e}")
 
@@ -1259,9 +1267,11 @@ if st.session_state.active_job_id:
                                     "country_filter": cf,
                                 }, timeout=30)
                                 if r.status_code == 200:
-                                    d = r.json()
-                                    st.session_state.active_job_id = d.get("job_id","")
+                                    resp_data = r.json()
+                                    st.session_state.active_job_id = resp_data.get("job_id","")
                                     st.rerun()
+                                else:
+                                    st.error(f"Continue failed: HTTP {r.status_code}")
                             except Exception as e:
                                 st.error(str(e))
                     with cc2:
