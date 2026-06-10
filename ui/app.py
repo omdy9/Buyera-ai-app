@@ -904,6 +904,47 @@ DEFAULT_COLUMNS = [
 ]
 
 # ---------------------------------------------------------------------------
+# City list for filter
+# ---------------------------------------------------------------------------
+ALL_CITIES = {
+    "India": [
+        "Mumbai","Delhi","Bangalore","Bengaluru","Hyderabad","Ahmedabad","Chennai",
+        "Kolkata","Surat","Pune","Jaipur","Lucknow","Nagpur","Indore","Thane",
+        "Bhopal","Patna","Vadodara","Ghaziabad","Ludhiana","Agra","Nashik",
+        "Faridabad","Meerut","Rajkot","Varanasi","Aurangabad","Coimbatore",
+        "Vijayawada","Noida","Gurgaon","Gurugram","Chandigarh","Mysore","Mysuru",
+        "Amritsar","Kochi","Cochin","Ernakulam",
+    ],
+    "UAE":       ["Dubai","Abu Dhabi","Sharjah","Ajman","Ras Al Khaimah","Fujairah"],
+    "USA":       ["New York","Los Angeles","Chicago","Houston","Phoenix","Philadelphia",
+                  "San Antonio","San Diego","Dallas","San Jose","Austin","Jacksonville"],
+    "UK":        ["London","Manchester","Birmingham","Leeds","Glasgow","Liverpool",
+                  "Bristol","Sheffield","Edinburgh","Cardiff"],
+    "Germany":   ["Berlin","Hamburg","Munich","Cologne","Frankfurt","Stuttgart",
+                  "Düsseldorf","Dortmund","Essen","Leipzig"],
+    "Canada":    ["Toronto","Montreal","Vancouver","Calgary","Edmonton","Ottawa",
+                  "Winnipeg","Quebec City","Hamilton","Kitchener"],
+    "Australia": ["Sydney","Melbourne","Brisbane","Perth","Adelaide","Gold Coast",
+                  "Newcastle","Canberra","Sunshine Coast","Wollongong"],
+    "Singapore": ["Singapore"],
+    "China":     ["Beijing","Shanghai","Guangzhou","Shenzhen","Chengdu","Hangzhou",
+                  "Wuhan","Xi'an","Nanjing","Tianjin"],
+    "Italy":     ["Rome","Milan","Naples","Turin","Palermo","Genoa","Bologna",
+                  "Florence","Bari","Catania"],
+    "France":    ["Paris","Marseille","Lyon","Toulouse","Nice","Nantes","Strasbourg",
+                  "Montpellier","Bordeaux","Lille"],
+    "Japan":     ["Tokyo","Osaka","Nagoya","Sapporo","Fukuoka","Kobe","Kyoto",
+                  "Kawasaki","Saitama","Hiroshima"],
+}
+
+QUALITY_LABELS = {
+    0: ("🌐 Show Everything",   "Includes directories, social pages, low-relevance results"),
+    1: ("📋 Basic Filter",      "Removes obvious junk, keeps directories and borderline leads"),
+    2: ("⭐ Good Leads Only",   "Medium+ relevance — solid business prospects"),
+    3: ("🏆 Best Matches Only", "High relevance only — verified, enriched, Grok-approved"),
+}
+
+# ---------------------------------------------------------------------------
 # Session state
 # ---------------------------------------------------------------------------
 _DEFAULTS = {
@@ -927,6 +968,7 @@ _DEFAULTS = {
     "view_mode":          "Cards",
     "scan_all":           False,
     "quality_threshold":  0,
+    "sf_city":            "Any",
 }
 for k, v in _DEFAULTS.items():
     if k not in st.session_state:
@@ -1032,6 +1074,10 @@ def _build_final_query() -> str:
     if st8 and st8 != "Any":
         if st8.lower() not in st.session_state.sf_query.lower():
             parts.append(st8)
+    city = st.session_state.get("sf_city","Any")
+    if city and city not in ("Any",""):
+        if city.lower() not in st.session_state.sf_query.lower():
+            parts.append(city)
     ctr = st.session_state.sf_country
     if ctr and ctr != "Any Country":
         if ctr.lower() not in st.session_state.sf_query.lower():
@@ -1297,6 +1343,10 @@ def _apply_filters(leads: list) -> list:
     if st.session_state.sf_channel != "Any" and "channel_type" in df.columns:
         df = df[df["channel_type"].astype(str) == st.session_state.sf_channel]
 
+    if st.session_state.get("sf_city","Any") not in ("Any","") and "city" in df.columns:
+        city_val = st.session_state.sf_city.lower()
+        df = df[df["city"].astype(str).str.lower().str.contains(city_val, na=False)]
+
     imp_map = {"High ⭐": "high", "Medium": "medium", "Low": "low"}
     imp_val = imp_map.get(st.session_state.sf_importance)
     if imp_val and "importance" in df.columns:
@@ -1548,6 +1598,75 @@ def _show_table(leads: list, key_suffix: str = ""):
     )
 
 
+def _show_extracted_companies(companies: list, key_suffix: str = "",
+                              query: str = "") -> None:
+    """
+    Display extracted directory companies in a rich, detailed table + cards.
+    """
+    if not companies:
+        st.info("No companies extracted yet.")
+        return
+
+    st.markdown(f"**{len(companies)} companies extracted**")
+
+    # Build a clean dataframe
+    rows = []
+    for c in companies:
+        rows.append({
+            "Company":   str(c.get("company","—")),
+            "City":      str(c.get("city","—")),
+            "Phone":     str(c.get("phone","—")),
+            "Email":     str(c.get("email","—")),
+            "Website":   str(c.get("website","—")),
+            "Products":  str(c.get("products","—"))[:80],
+            "About":     str(c.get("snippet","—"))[:100],
+        })
+    df = pd.DataFrame(rows)
+
+    # Show as styled table
+    st.dataframe(df, use_container_width=True,
+                 height=min(60 + len(df)*36, 500))
+
+    # Download button
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "⬇️ Download All as CSV",
+        data=csv,
+        file_name=f"directory_{key_suffix}.csv",
+        mime="text/csv",
+        key=f"dl_dir_{key_suffix}_{len(companies)}",
+    )
+
+    # Card view toggle
+    if st.checkbox("Show as cards", key=f"cards_dir_{key_suffix}"):
+        for ci, c in enumerate(companies):
+            name    = str(c.get("company","Unknown"))
+            city    = str(c.get("city",""))
+            phone   = str(c.get("phone",""))
+            email   = str(c.get("email",""))
+            website = str(c.get("website",""))
+            prods   = str(c.get("products",""))[:120]
+            snippet = str(c.get("snippet",""))[:150]
+
+            links = ""
+            if website and website not in ("nan","—",""):
+                links += f'<a class="card-link" href="{website}" target="_blank">🌐 Website</a>'
+            if email and "@" in email:
+                links += f'<a class="card-link" href="mailto:{email}">📧 {email}</a>'
+            if phone and phone not in ("nan","—",""):
+                links += f'<span class="card-link">📞 {phone}</span>'
+
+            st.markdown(f"""
+            <div class="result-card">
+              <div class="card-company">{name}</div>
+              <div class="card-meta">{"📍 "+city if city and city not in ("nan","—") else ""}</div>
+              {"<div class='card-summary'>📦 "+prods+"</div>" if prods and prods not in ("nan","—") else ""}
+              {"<div class='card-summary' style='color:#64748b'>"+snippet+"</div>" if snippet and snippet not in ("nan","—") else ""}
+              {"<div class='card-links'>"+links+"</div>" if links else ""}
+            </div>
+            """, unsafe_allow_html=True)
+
+
 def _show_results(leads: list, key_suffix: str = "tab"):
     if not leads:
         st.markdown("""
@@ -1637,71 +1756,145 @@ if company_leads:
         _show_results(trade_leads, "trade")
 
     with tab_dir:
-        st.markdown("#### 📂 Directory Pages Found")
+        st.markdown("#### 📂 Directory Pages Detected")
         st.caption(
-            "When Grok detects that a search result is a **business directory** "
-            "(a page listing multiple companies), it appears here. "
-            "You can extract all the companies from it as individual leads."
+            "When AI detects a page that **lists multiple companies** (a directory), "
+            "it appears here. Extract all companies with one click — each gets a "
+            "full profile with contact details, website, products and more."
         )
 
         dir_leads = [x for x in company_leads if x.get("is_directory")]
+
+        # Also allow manual URL entry
+        with st.expander("📥 Manually scan any directory URL", expanded=False):
+            manual_url = st.text_input(
+                "Paste a directory URL",
+                placeholder="https://www.indiamart.com/proddetail/...",
+                key="manual_dir_url",
+            )
+            manual_query = st.text_input(
+                "What kind of companies are listed here?",
+                placeholder="electronics importers india",
+                key="manual_dir_query",
+            )
+            if st.button("🔍 Scan this URL", key="manual_dir_btn", type="primary"):
+                if manual_url:
+                    with st.spinner("Scanning directory…"):
+                        try:
+                            r = _api_post("/leads/extract-directory",
+                                json={"website": manual_url, "content": "",
+                                      "query": manual_query or st.session_state.active_query},
+                                timeout=90)
+                            if r.status_code == 200:
+                                res = r.json()
+                                st.session_state["manual_dir_result"] = res
+                                st.session_state["manual_dir_url_done"] = manual_url
+                            else:
+                                st.error(f"Scan failed: {r.text}")
+                        except Exception as e:
+                            st.error(f"Cannot reach server: {e}")
+
+            if st.session_state.get("manual_dir_result"):
+                res   = st.session_state["manual_dir_result"]
+                found = res.get("extracted", 0)
+                saved = res.get("saved", 0)
+                companies = res.get("companies", [])
+                st.success(f"✅ Found **{found}** companies, saved **{saved}** as leads")
+                if companies:
+                    _show_extracted_companies(companies,
+                        key_suffix="manual",
+                        query=manual_query or st.session_state.active_query)
+
         if not dir_leads:
-            st.info("No directory pages detected in current results. "
-                    "Try searching for terms like 'electronics importers list' or "
-                    "'manufacturers directory Gujarat'.")
+            st.markdown("""
+            <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;
+                 padding:16px 20px;font-size:0.85rem;color:#78350f">
+              <strong>💡 No directories detected yet.</strong><br>
+              Try searching for terms like:<br>
+              <code>electronics importers list india</code> &nbsp;·&nbsp;
+              <code>manufacturers directory Gujarat</code> &nbsp;·&nbsp;
+              <code>pharma distributors Mumbai directory</code><br><br>
+              Or paste any directory URL in the manual scanner above.
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            for dl in dir_leads:
-                dname   = dl.get("company","Unknown")
+            st.markdown(f"**{len(dir_leads)} director{'y' if len(dir_leads)==1 else 'ies'} found in this search**")
+
+            for di, dl in enumerate(dir_leads):
+                dname   = dl.get("company", "Unknown Directory")
                 durl    = dl.get("active_website", dl.get("website",""))
                 dcount  = int(dl.get("directory_count", 0) or 0)
-                dsum    = dl.get("ai_summary","")[:150]
+                dsum    = dl.get("ai_summary","")[:200]
+                dir_cos = dl.get("directory_companies", [])
 
-                st.markdown(f"""
-                <div style="background:white;border:1px solid #e2e8f0;border-radius:12px;
-                     padding:16px 20px;margin-bottom:10px;">
-                  <div style="font-weight:700;color:#1e293b;font-size:1rem;">
-                    📂 {dname}
-                  </div>
-                  <div style="font-size:0.8rem;color:#64748b;margin:4px 0">
-                    🌐 <a href="{durl}" target="_blank">{durl}</a>
-                  </div>
-                  {"<div style='font-size:0.82rem;color:#475569;margin:6px 0'>"+dsum+"</div>" if dsum else ""}
-                  <div style="background:#fef9c3;color:#854d0e;padding:4px 12px;
-                       border-radius:6px;font-size:0.8rem;display:inline-block;margin-top:6px;">
-                    📊 ~{dcount} companies listed inside
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
+                with st.expander(
+                    f"📂 {dname}  {'— ' + str(dcount) + ' companies inside' if dcount else ''}",
+                    expanded=(di == 0)
+                ):
+                    st.markdown(f"""
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+                      <a href="{durl}" target="_blank" style="color:#1e40af;font-size:0.82rem">
+                        🌐 {durl}
+                      </a>
+                      {"<span style='background:#fef9c3;color:#854d0e;padding:2px 10px;border-radius:6px;font-size:0.78rem'>📊 ~"+str(dcount)+" companies listed</span>" if dcount else ""}
+                    </div>
+                    {"<p style='font-size:0.83rem;color:#475569;margin:0 0 12px'>"+dsum+"</p>" if dsum and dsum!="nan" else ""}
+                    """, unsafe_allow_html=True)
 
-                col_x, col_y = st.columns([2,3])
-                with col_x:
-                    if st.button(f"⚡ Extract All Companies from this Directory",
-                                 key=f"extract_{durl[:30]}"):
-                        with st.spinner(f"Extracting companies from {dname}…"):
-                            try:
-                                r = _api_post("/leads/extract-directory",
-                                    json={
-                                        "website": durl,
-                                        "content": dl.get("content",""),
-                                        "query":   st.session_state.active_query,
-                                    }, timeout=60)
-                                if r.status_code == 200:
-                                    result = r.json()
-                                    saved  = result.get("saved", 0)
-                                    found  = result.get("extracted", 0)
-                                    st.success(
-                                        f"✅ Extracted **{found}** companies, "
-                                        f"saved **{saved}** as leads! Refresh to see them."
-                                    )
-                                    if result.get("companies"):
-                                        st.dataframe(
-                                            pd.DataFrame(result["companies"]),
-                                            use_container_width=True,
-                                        )
-                                else:
-                                    st.error(f"Extraction failed: {r.text}")
-                            except Exception as e:
-                                st.error(f"Cannot reach server: {e}")
+                    # If directory_companies already extracted, show them
+                    if dir_cos:
+                        st.success(f"✅ Already extracted {len(dir_cos)} companies from this directory")
+                        _show_extracted_companies(dir_cos,
+                            key_suffix=f"dir_{di}",
+                            query=st.session_state.active_query)
+                    else:
+                        ec1, ec2 = st.columns([2,3])
+                        with ec1:
+                            if st.button(
+                                f"⚡ Extract & Deep Scan All Companies",
+                                key=f"extract_btn_{di}",
+                                type="primary",
+                            ):
+                                with st.spinner(
+                                    f"Extracting companies from {dname}… "
+                                    f"This may take 30–60 seconds."
+                                ):
+                                    try:
+                                        r = _api_post("/leads/extract-directory",
+                                            json={
+                                                "website": durl,
+                                                "content": dl.get("content",""),
+                                                "query":   st.session_state.active_query,
+                                            }, timeout=120)
+                                        if r.status_code == 200:
+                                            res   = r.json()
+                                            found = res.get("extracted", 0)
+                                            saved = res.get("saved", 0)
+                                            cos   = res.get("companies", [])
+                                            st.success(
+                                                f"✅ Extracted **{found}** companies, "
+                                                f"saved **{saved}** as leads!"
+                                            )
+                                            if cos:
+                                                st.session_state[f"dir_cos_{di}"] = cos
+                                                st.rerun()
+                                        else:
+                                            st.error(f"Extraction failed: {r.text}")
+                                    except Exception as e:
+                                        st.error(f"Cannot reach server: {e}")
+                        with ec2:
+                            st.info(
+                                "Extraction uses AI to read every company on this page "
+                                "and save their name, contact, website, and products."
+                            )
+
+                    # Show cached result from this session
+                    if st.session_state.get(f"dir_cos_{di}"):
+                        _show_extracted_companies(
+                            st.session_state[f"dir_cos_{di}"],
+                            key_suffix=f"dir_cached_{di}",
+                            query=st.session_state.active_query,
+                        )
 
     # LinkedIn profiles
     linkedin_leads = [x for x in raw_leads if x.get("source") == "linkedin_semantic"]
