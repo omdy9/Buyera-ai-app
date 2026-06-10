@@ -962,8 +962,10 @@ with sc1:
         value=st.session_state.sf_query,
         placeholder='Try: "LED light importers Gujarat" or "pharma distributors Mumbai"',
         label_visibility="collapsed",
-        key="sf_query",
+        key="search_input_box",
     )
+    # Keep sf_query in sync without assigning directly to widget key
+    st.session_state.sf_query = query
 with sc2:
     st.markdown('<div class="search-btn">', unsafe_allow_html=True)
     search_clicked = st.button("🔍 Search", use_container_width=True, key="main_search_btn")
