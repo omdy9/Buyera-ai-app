@@ -875,6 +875,18 @@ ALL_COLUMNS = {
     "usp":                "Unique Selling Point",
     "key_customers":      "Key Customers / Clients",
     "llm_score":          "AI Relevance Score",
+    "grok_score":         "Grok Validation Score",
+    "contact_title":      "Contact Job Title",
+    "contact_confidence": "Contact Confidence",
+    "is_valid_lead":      "Valid Lead (Grok)",
+    "rejection_reason":   "Rejection Reason",
+    "twitter_url":        "X (Twitter)",
+    "facebook_url":       "Facebook",
+    "instagram_url":      "Instagram",
+    "youtube_url":        "YouTube",
+    "whatsapp_url":       "WhatsApp",
+    "is_directory":       "Is Directory Page",
+    "directory_count":    "Companies in Directory",
 }
 
 DEFAULT_COLUMNS = [
@@ -906,6 +918,7 @@ _DEFAULTS = {
     "visible_cols":       DEFAULT_COLUMNS[:],
     "view_mode":          "Cards",
     "scan_all":           False,
+    "quality_threshold":  0,
 }
 for k, v in _DEFAULTS.items():
     if k not in st.session_state:
@@ -1140,7 +1153,9 @@ if company_leads or st.session_state.active_job_id:
             "📞 Contact Details": ["contact_person","contact_email","email","phone","linkedin_url"],
             "🌐 Online Presence": ["active_website"],
             "🤖 AI Analysis": ["ai_summary","products","usp","key_customers"],
-            "💰 Business Details": ["annual_turnover","certifications","export_markets","llm_score"],
+            "💰 Business Details": ["annual_turnover","certifications","export_markets","grok_score"],
+            "📱 Social Media": ["linkedin_url","twitter_url","facebook_url","instagram_url","youtube_url","whatsapp_url"],
+            "🔍 Lead Validation": ["is_valid_lead","rejection_reason","contact_title","contact_confidence","is_directory","directory_count"],
             "🔍 Search Info": ["searched_query","created_at"],
         }
 
@@ -1374,6 +1389,18 @@ def _show_cards(leads: list):
         usp       = str(row.get("usp", ""))[:120]
         key_cust  = row.get("key_customers", [])
 
+        twitter   = str(row.get("twitter_url",   ""))
+        facebook  = str(row.get("facebook_url",  ""))
+        instagram = str(row.get("instagram_url", ""))
+        youtube   = str(row.get("youtube_url",   ""))
+        whatsapp  = str(row.get("whatsapp_url",  ""))
+        ctitle    = str(row.get("contact_title",    ""))
+        cconfidence = str(row.get("contact_confidence",""))
+        is_dir    = bool(row.get("is_directory", False))
+        dir_count = int(row.get("directory_count", 0) or 0)
+        is_valid  = bool(row.get("is_valid_lead", True))
+        rejection = str(row.get("rejection_reason",""))
+
         links_html = ""
         if website and website not in ("nan", ""):
             links_html += f'<a class="card-link" href="{website}" target="_blank">🌐 Website</a>'
@@ -1383,6 +1410,16 @@ def _show_cards(leads: list):
             links_html += f'<span class="card-link">📞 {phone}</span>'
         if linkedin and linkedin not in ("nan",""):
             links_html += f'<a class="card-link" href="{linkedin}" target="_blank">💼 LinkedIn</a>'
+        if twitter and twitter not in ("nan",""):
+            links_html += f'<a class="card-link" href="{twitter}" target="_blank">🐦 X/Twitter</a>'
+        if facebook and facebook not in ("nan",""):
+            links_html += f'<a class="card-link" href="{facebook}" target="_blank">📘 Facebook</a>'
+        if instagram and instagram not in ("nan",""):
+            links_html += f'<a class="card-link" href="{instagram}" target="_blank">📸 Instagram</a>'
+        if youtube and youtube not in ("nan",""):
+            links_html += f'<a class="card-link" href="{youtube}" target="_blank">▶️ YouTube</a>'
+        if whatsapp and whatsapp not in ("nan",""):
+            links_html += f'<a class="card-link" href="{whatsapp}" target="_blank">💬 WhatsApp</a>' 
 
         extra_html = ""
         if turnover and turnover not in ("nan",""):
@@ -1413,6 +1450,9 @@ def _show_cards(leads: list):
           {'<div class="card-summary">'+summary+'</div>' if summary and summary != "nan" else ''}
           {'<div class="card-summary" style="color:#1e40af;font-size:0.78rem">📦 '+prod_str+'</div>' if prod_str else ''}
           {'<div class="card-summary" style="color:#6b7280;font-size:0.78rem;font-style:italic">💡 '+usp+'</div>' if usp and usp != "nan" else ''}
+          {'<div style="font-size:0.75rem;color:#374151;margin:4px 0"><strong>👤 Contact:</strong> '+company.get("contact_person","")+(" — "+ctitle if ctitle and ctitle!="nan" else "")+(" <span style=\'color:#10b981\'>("+cconfidence+" confidence)</span>" if cconfidence not in ("","nan","low") else "")+"</div>" if row.get("contact_person") else ''}
+          {'<div style="font-size:0.73rem;background:#fef9c3;color:#854d0e;padding:4px 10px;border-radius:6px;margin:4px 0;">📂 Directory — contains <strong>'+str(dir_count)+' companies</strong>. Use the Extract button below.</div>' if is_dir and dir_count > 0 else ''}
+          {'<div style="font-size:0.73rem;background:#fee2e2;color:#991b1b;padding:4px 10px;border-radius:6px;margin:4px 0;">⚠️ Grok flagged: '+rejection+'</div>' if not is_valid and rejection and rejection!="nan" else ''}
           {'<div class="card-tags" style="margin-top:6px">'+extra_html+'</div>' if extra_html else ''}
           {'<div class="card-links">'+links_html+'</div>' if links_html else ''}
         </div>
@@ -1512,13 +1552,14 @@ if company_leads:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # Tabs
-    tab_all, tab_high, tab_gaps, tab_mfg, tab_imp, tab_trade = st.tabs([
+    tab_all, tab_high, tab_gaps, tab_mfg, tab_imp, tab_trade, tab_dir = st.tabs([
         f"🌐 All ({len(company_leads)})",
         "⭐ High Priority",
         "⚠️ Compliance Issues",
         "🏭 Manufacturers",
         "📦 Importers",
         "🤝 Traders & Distributors",
+        "📂 Directories",
     ])
 
     with tab_all:
@@ -1558,6 +1599,73 @@ if company_leads:
                        if x.get("channel_type") in
                        ("Trader","Distributor","Wholesaler","Retailer")]
         _show_results(trade_leads, "trade")
+
+    with tab_dir:
+        st.markdown("#### 📂 Directory Pages Found")
+        st.caption(
+            "When Grok detects that a search result is a **business directory** "
+            "(a page listing multiple companies), it appears here. "
+            "You can extract all the companies from it as individual leads."
+        )
+
+        dir_leads = [x for x in company_leads if x.get("is_directory")]
+        if not dir_leads:
+            st.info("No directory pages detected in current results. "
+                    "Try searching for terms like 'electronics importers list' or "
+                    "'manufacturers directory Gujarat'.")
+        else:
+            for dl in dir_leads:
+                dname   = dl.get("company","Unknown")
+                durl    = dl.get("active_website", dl.get("website",""))
+                dcount  = int(dl.get("directory_count", 0) or 0)
+                dsum    = dl.get("ai_summary","")[:150]
+
+                st.markdown(f"""
+                <div style="background:white;border:1px solid #e2e8f0;border-radius:12px;
+                     padding:16px 20px;margin-bottom:10px;">
+                  <div style="font-weight:700;color:#1e293b;font-size:1rem;">
+                    📂 {dname}
+                  </div>
+                  <div style="font-size:0.8rem;color:#64748b;margin:4px 0">
+                    🌐 <a href="{durl}" target="_blank">{durl}</a>
+                  </div>
+                  {"<div style='font-size:0.82rem;color:#475569;margin:6px 0'>"+dsum+"</div>" if dsum else ""}
+                  <div style="background:#fef9c3;color:#854d0e;padding:4px 12px;
+                       border-radius:6px;font-size:0.8rem;display:inline-block;margin-top:6px;">
+                    📊 ~{dcount} companies listed inside
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                col_x, col_y = st.columns([2,3])
+                with col_x:
+                    if st.button(f"⚡ Extract All Companies from this Directory",
+                                 key=f"extract_{durl[:30]}"):
+                        with st.spinner(f"Extracting companies from {dname}…"):
+                            try:
+                                r = _api_post("/leads/extract-directory",
+                                    json={
+                                        "website": durl,
+                                        "content": dl.get("content",""),
+                                        "query":   st.session_state.active_query,
+                                    }, timeout=60)
+                                if r.status_code == 200:
+                                    result = r.json()
+                                    saved  = result.get("saved", 0)
+                                    found  = result.get("extracted", 0)
+                                    st.success(
+                                        f"✅ Extracted **{found}** companies, "
+                                        f"saved **{saved}** as leads! Refresh to see them."
+                                    )
+                                    if result.get("companies"):
+                                        st.dataframe(
+                                            pd.DataFrame(result["companies"]),
+                                            use_container_width=True,
+                                        )
+                                else:
+                                    st.error(f"Extraction failed: {r.text}")
+                            except Exception as e:
+                                st.error(f"Cannot reach server: {e}")
 
     # LinkedIn profiles
     linkedin_leads = [x for x in raw_leads if x.get("source") == "linkedin_semantic"]
