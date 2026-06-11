@@ -2136,10 +2136,7 @@ def _render_expanded_card(row: dict, cid: str):
 
 
 def _render_card_list(leads: list, key_suffix: str = ""):
-    """
-    Master panel — renders compact card cells in the left column.
-    Clicking a cell sets selected_card; the right panel renders the detail.
-    """
+    """Left panel — compact selectable cells."""
     if not leads:
         st.markdown("""
         <div class="empty-state">
@@ -2155,7 +2152,6 @@ def _render_card_list(leads: list, key_suffix: str = ""):
     for idx, row in enumerate(leads):
         cid       = _card_id(row, idx)
         is_sel    = (selected == cid)
-
         company   = str(row.get("company", "Unknown"))
         city      = str(row.get("city", ""))
         country   = str(row.get("country_detected", ""))
@@ -2167,272 +2163,302 @@ def _render_card_list(leads: list, key_suffix: str = ""):
         is_dir    = bool(row.get("is_directory", False))
         loc       = ", ".join(filter(None, [city, country]))
         emoji     = "📂" if is_dir else _channel_emoji(channel)
-        has_email = "🟢" if "@" in email else ""
-        sel_class = " selected" if is_sel else ""
+        has_email = " 🟢" if "@" in email else ""
 
+        # Build gap badge inline (no external function that returns HTML fragments)
+        if isinstance(gaps, list) and gaps:
+            gap_badge = f'<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:600;background:#fee2e2;color:#991b1b">⚠ Issues</span>'
+        else:
+            gap_badge = f'<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:600;background:#dcfce7;color:#166534">✓ Clean</span>'
+
+        imp_lower = imp.lower()
+        if imp_lower == "high":
+            imp_badge = '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:600;background:#dcfce7;color:#166534">⭐ High</span>'
+        elif imp_lower == "medium":
+            imp_badge = '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:600;background:#fef9c3;color:#854d0e">Medium</span>'
+        else:
+            imp_badge = '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:600;background:#f1f5f9;color:#64748b">Low</span>'
+
+        border_color = "#1e40af" if is_sel else "#e2e8f0"
+        bg_color     = "#eff6ff" if is_sel else "white"
+
+        # Single complete self-contained HTML block — no split divs
         st.markdown(f"""
-        <div class="lead-cell{sel_class}">
-          <div class="cell-icon">{emoji}</div>
-          <div class="cell-body">
-            <div class="cell-name">{company}</div>
-            <div class="cell-meta">
-              {("📍 "+loc+"  ·  ") if loc else ""}{channel}
-              {("  "+has_email) if has_email else ""}
+        <div style="background:{bg_color};border:1.5px solid {border_color};border-radius:10px;
+                    padding:11px 14px;margin-bottom:5px;cursor:pointer;
+                    transition:border-color .12s,background .1s;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:34px;height:34px;border-radius:8px;background:#eff6ff;
+                        display:flex;align-items:center;justify-content:center;
+                        font-size:1rem;flex-shrink:0;">{emoji}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.88rem;font-weight:700;color:#1e293b;
+                          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{company}</div>
+              <div style="font-size:0.72rem;color:#64748b;margin-top:1px;
+                          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                {"📍 "+loc+"  ·  " if loc else ""}{channel}{has_email}
+              </div>
             </div>
-          </div>
-          <div class="cell-right">
-            {_importance_pill(imp)}
-            {_gap_pill(gaps)}
-            <span class="score-badge">{score:.2f}</span>
+            <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+              {imp_badge}
+              {gap_badge}
+              <span style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;
+                           padding:2px 8px;border-radius:5px;font-size:0.72rem;font-weight:700;">{score:.2f}</span>
+            </div>
           </div>
         </div>
         """, unsafe_allow_html=True)
 
-        btn_label = "✓ Selected" if is_sel else "Select →"
+        btn_label = "✓ Selected" if is_sel else "Open →"
         if st.button(btn_label, key=f"sel_{key_suffix}_{cid}_{idx}",
-                     use_container_width=True,
-                     help="Click to view full company details on the right"):
+                     use_container_width=True):
             if not is_sel:
-                # New selection — fetch AI detail if not cached
                 st.session_state.selected_card = cid
                 st.session_state.selected_tab  = key_suffix
                 if cid not in st.session_state.card_details:
-                    with st.spinner(f"Loading details for {company[:25]}…"):
+                    with st.spinner(f"Loading {company[:20]}…"):
                         enriched = _fetch_ai_detail(row)
                         st.session_state.card_details[cid] = enriched
             else:
-                # Clicking again deselects
                 st.session_state.selected_card = None
                 st.session_state.selected_tab  = ""
             st.rerun()
 
 
+def _safe(v: str) -> str:
+    """Return empty string if value is nan/None/empty."""
+    return "" if str(v).strip().lower() in ("nan", "none", "") else str(v).strip()
+
+
 def _render_detail_panel(cid: str):
     """
-    Right panel — renders full company detail for the selected card.
-    Called from _show_results when a card is selected.
+    Right panel — builds the ENTIRE detail card as ONE html string
+    then emits it in a single st.markdown call.
+    Interactive widgets (buttons, download) are rendered after the HTML block.
     """
     row = st.session_state.card_details.get(cid)
     if not row:
         st.markdown("""
-        <div class="detail-empty">
-          <div class="icon">👈</div>
-          <p>Select a company on the left<br>to see full details here.</p>
+        <div style="display:flex;flex-direction:column;align-items:center;
+                    justify-content:center;min-height:280px;
+                    border:1.5px dashed #e2e8f0;border-radius:14px;
+                    background:white;text-align:center;padding:40px 20px;">
+          <div style="font-size:2.8rem;margin-bottom:10px;">👈</div>
+          <p style="color:#94a3b8;font-size:0.83rem;margin:0;line-height:1.5;">
+            Select a company on the left<br>to see full details here.
+          </p>
         </div>
         """, unsafe_allow_html=True)
         return
 
-    company   = str(row.get("company", "—"))
-    city      = str(row.get("city", ""))
-    country   = str(row.get("country_detected", ""))
-    industry  = str(row.get("industry_detected", ""))
-    channel   = str(row.get("channel_type", ""))
+    # ── Extract all fields ──
+    company   = _safe(row.get("company", ""))   or "Unknown"
+    city      = _safe(row.get("city", ""))
+    country   = _safe(row.get("country_detected", ""))
+    industry  = _safe(row.get("industry_detected", ""))
+    channel   = _safe(row.get("channel_type", ""))
     score     = float(row.get("final_score", 0) or 0)
-    imp       = str(row.get("importance", "low"))
-    gaps      = row.get("compliance_gaps", [])
-    email     = str(row.get("email", ""))
-    phone     = str(row.get("phone", ""))
-    website   = str(row.get("active_website", row.get("website", "")))
-    linkedin  = str(row.get("linkedin_url", ""))
-    summary   = str(row.get("ai_summary", ""))
-    products  = row.get("products", [])
-    size      = str(row.get("company_size", ""))
-    founded   = str(row.get("incorporation_date", ""))
-    turnover  = str(row.get("annual_turnover", ""))
-    certs     = row.get("certifications", [])
-    exports   = row.get("export_markets", [])
-    usp       = str(row.get("usp", ""))
-    key_cust  = row.get("key_customers", [])
-    contact   = str(row.get("contact_person", ""))
-    c_title   = str(row.get("contact_title", ""))
-    c_conf    = str(row.get("contact_confidence", ""))
-    c_email   = str(row.get("contact_email", ""))
+    imp       = _safe(row.get("importance", "low")) or "low"
+    gaps      = row.get("compliance_gaps", []) or []
+    email     = _safe(row.get("email", ""))
+    phone     = _safe(row.get("phone", ""))
+    website   = _safe(row.get("active_website", row.get("website", "")))
+    linkedin  = _safe(row.get("linkedin_url", ""))
+    summary   = _safe(row.get("ai_summary", ""))
+    products  = row.get("products", []) or []
+    size      = _safe(row.get("company_size", ""))
+    founded   = _safe(row.get("incorporation_date", ""))
+    turnover  = _safe(row.get("annual_turnover", ""))
+    certs     = [x for x in (row.get("certifications") or []) if _safe(str(x))]
+    exports   = [x for x in (row.get("export_markets") or []) if _safe(str(x))]
+    usp       = _safe(row.get("usp", ""))
+    key_cust  = [x for x in (row.get("key_customers") or []) if _safe(str(x))]
+    contact   = _safe(row.get("contact_person", ""))
+    c_title   = _safe(row.get("contact_title", ""))
+    c_conf    = _safe(row.get("contact_confidence", ""))
+    c_email   = _safe(row.get("contact_email", ""))
     is_dir    = bool(row.get("is_directory", False))
-    dir_cos   = row.get("directory_companies", [])
+    dir_cos   = row.get("directory_companies", []) or []
     dir_count = int(row.get("directory_count", 0) or 0)
     is_valid  = bool(row.get("is_valid_lead", True))
-    rejection = str(row.get("rejection_reason", ""))
+    rejection = _safe(row.get("rejection_reason", ""))
+    signals   = [x for x in (row.get("_research_signals") or []) if _safe(str(x))]
+    news      = row.get("_research_news") or []
+    social_r  = row.get("_research_social") or {}
 
-    # AI research extras
-    signals   = row.get("_research_signals", [])
-    news      = row.get("_research_news", [])
-    social_r  = row.get("_research_social", {})
+    loc      = ", ".join(filter(None, [city, country]))
+    prod_str = "  ·  ".join(str(p) for p in products[:8] if _safe(str(p)))
 
-    loc = ", ".join(filter(None, [city, country]))
-
-    # Tags html
-    tag_parts = [t for t in [industry, channel, size,
-                              f"Est. {founded}" if founded and founded not in ("nan","") else ""]
-                 if t and t not in ("nan","")]
-    tags_html = "".join(f'<span class="card-tag">{t}</span>' for t in tag_parts)
-    if turnover and turnover not in ("nan",""):
-        tags_html += f'<span class="card-tag" style="background:#f0fdf4;color:#166534">💰 {turnover}</span>'
-
-    # Gap html
-    gap_html = ""
-    if isinstance(gaps, list) and gaps:
-        for g in [GAP_LABELS.get(x, x) for x in gaps]:
-            gap_html += f'<span class="status-pill pill-gap" style="margin-right:4px;margin-bottom:4px">⚠ {g}</span>'
+    # ── Build importance badge ──
+    imp_lower = imp.lower()
+    if imp_lower == "high":
+        imp_badge = '<span style="padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:600;background:#dcfce7;color:#166534;">⭐ High</span>'
+    elif imp_lower == "medium":
+        imp_badge = '<span style="padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:600;background:#fef9c3;color:#854d0e;">Medium</span>'
     else:
-        gap_html = '<span class="status-pill pill-clean">✓ No compliance issues</span>'
+        imp_badge = '<span style="padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:600;background:#f1f5f9;color:#64748b;">Low</span>'
 
-    # Links
-    links_html = ""
-    if website and website not in ("nan",""):
-        links_html += f'<a class="detail-link" href="{website}" target="_blank">🌐 Website</a>'
+    # ── Build tags ──
+    tag_items = [t for t in [industry, channel, size,
+                              f"Est. {founded}" if founded else ""] if t]
+    if turnover:
+        tags_html = "".join(f'<span style="background:#f1f5f9;color:#475569;padding:3px 10px;border-radius:6px;font-size:0.72rem;font-weight:500;margin-right:4px;">{t}</span>' for t in tag_items)
+        tags_html += f'<span style="background:#f0fdf4;color:#166534;padding:3px 10px;border-radius:6px;font-size:0.72rem;font-weight:500;margin-right:4px;">💰 {turnover}</span>'
+    else:
+        tags_html = "".join(f'<span style="background:#f1f5f9;color:#475569;padding:3px 10px;border-radius:6px;font-size:0.72rem;font-weight:500;margin-right:4px;">{t}</span>' for t in tag_items)
+
+    # ── Build compliance ──
+    if isinstance(gaps, list) and gaps:
+        gap_html = " ".join(f'<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:600;background:#fee2e2;color:#991b1b;margin-right:4px;margin-bottom:4px;">⚠ {GAP_LABELS.get(g,g)}</span>' for g in gaps)
+    else:
+        gap_html = '<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:600;background:#dcfce7;color:#166534;">✓ No compliance issues</span>'
+
+    # ── Build links ──
+    links_parts = []
+    if website:
+        links_parts.append(f'<a href="{website}" target="_blank" style="color:#1e40af;font-size:0.78rem;font-weight:600;text-decoration:none;margin-right:12px;">🌐 Website</a>')
     if email and "@" in email:
-        links_html += f'<a class="detail-link" href="mailto:{email}">📧 {email}</a>'
-    if phone and phone not in ("nan",""):
-        links_html += f'<span class="detail-link">📞 {phone}</span>'
-    if linkedin and linkedin not in ("nan",""):
-        links_html += f'<a class="detail-link" href="{linkedin}" target="_blank">💼 LinkedIn</a>'
-    for field, icon, label in [
-        ("twitter_url","🐦","X"), ("facebook_url","📘","FB"),
-        ("instagram_url","📸","IG"), ("youtube_url","▶️","YT"),
-        ("whatsapp_url","💬","WA"),
-    ]:
-        v = str(row.get(field, ""))
-        if v and v not in ("nan",""):
-            links_html += f'<a class="detail-link" href="{v}" target="_blank">{icon} {label}</a>'
-    # From AI research social
-    for plat, icon in [("linkedin","💼"),("twitter","🐦"),("facebook","📘"),
-                       ("instagram","📸"),("youtube","▶️")]:
-        v = social_r.get(plat, "")
-        if v and v not in ("nan","") and not row.get(plat + "_url"):
-            links_html += f'<a class="detail-link" href="{v}" target="_blank">{icon}</a>'
+        links_parts.append(f'<a href="mailto:{email}" style="color:#1e40af;font-size:0.78rem;font-weight:600;text-decoration:none;margin-right:12px;">📧 {email}</a>')
+    if phone:
+        links_parts.append(f'<span style="color:#1e40af;font-size:0.78rem;font-weight:600;margin-right:12px;">📞 {phone}</span>')
+    if linkedin:
+        links_parts.append(f'<a href="{linkedin}" target="_blank" style="color:#1e40af;font-size:0.78rem;font-weight:600;text-decoration:none;margin-right:12px;">💼 LinkedIn</a>')
+    for field, icon, label in [("twitter_url","🐦","X"),("facebook_url","📘","FB"),
+                                ("instagram_url","📸","IG"),("youtube_url","▶️","YT"),
+                                ("whatsapp_url","💬","WA")]:
+        v = _safe(str(row.get(field,"")))
+        if v:
+            links_parts.append(f'<a href="{v}" target="_blank" style="color:#1e40af;font-size:0.78rem;font-weight:600;text-decoration:none;margin-right:12px;">{icon} {label}</a>')
+    for plat, icon in [("linkedin","💼"),("twitter","🐦"),("facebook","📘"),("instagram","📸"),("youtube","▶️")]:
+        v = _safe(str(social_r.get(plat,"")))
+        if v and not _safe(str(row.get(plat+"_url",""))):
+            links_parts.append(f'<a href="{v}" target="_blank" style="color:#1e40af;font-size:0.78rem;font-weight:600;text-decoration:none;margin-right:12px;">{icon}</a>')
+    links_html = "".join(links_parts)
 
-    prod_str = ""
-    if isinstance(products, list) and products:
-        prod_str = "  ·  ".join(str(p) for p in products[:8])
+    # ── Section helper ──
+    def section(title: str, content: str) -> str:
+        return (f'<div style="font-size:0.67rem;font-weight:700;color:#94a3b8;text-transform:uppercase;'
+                f'letter-spacing:.08em;margin:16px 0 5px;border-top:1px solid #f1f5f9;padding-top:10px;">{title}</div>'
+                f'<div style="font-size:0.82rem;color:#334155;line-height:1.65;">{content}</div>')
 
-    # ── Render detail card ──
-    st.markdown(f"""
-    <div class="detail-card">
+    # ── Build complete HTML ──
+    html_parts = []
+    html_parts.append(f"""
+    <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;
+                padding:22px 22px 18px;box-shadow:0 2px 12px rgba(0,0,0,.05);">
+
       <div style="display:flex;justify-content:space-between;align-items:flex-start;
-                  gap:10px;flex-wrap:wrap;margin-bottom:4px">
-        <div style="flex:1;min-width:0">
-          <div class="detail-title">{company}</div>
-          <div class="detail-sub">
-            {'📍 '+loc+'  ·  ' if loc else ''}{channel+' '+_channel_emoji(channel) if channel else ''}
+                  gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:1.1rem;font-weight:800;color:#1e293b;margin:0 0 2px;">{company}</div>
+          <div style="font-size:0.78rem;color:#64748b;">
+            {"📍 "+loc+"  ·  " if loc else ""}{(channel+" "+_channel_emoji(channel)) if channel else ""}
           </div>
         </div>
-        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
-          {_importance_pill(imp)}
-          <span class="score-badge">{score:.2f}</span>
-          {'<span class="status-pill" style="background:#fdf4ff;color:#7e22ce">📂 Dir</span>' if is_dir else ''}
+        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+          {imp_badge}
+          <span style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;
+                       padding:3px 10px;border-radius:6px;font-size:0.78rem;font-weight:700;">{score:.2f}</span>
+          {"<span style='padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:600;background:#fdf4ff;color:#7e22ce;'>📂 Dir</span>" if is_dir else ""}
         </div>
       </div>
-      {'<div class="card-tags" style="margin:8px 0 0">'+tags_html+'</div>' if tags_html else ''}
-    """, unsafe_allow_html=True)
+    """)
 
-    if summary and summary not in ("nan",""):
-        st.markdown(f'<div class="detail-section">About</div>'
-                    f'<div class="detail-body">{summary}</div>', unsafe_allow_html=True)
+    if tags_html:
+        html_parts.append(f'<div style="display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 0;">{tags_html}</div>')
 
-    if usp and usp not in ("nan",""):
-        st.markdown(f'<div class="detail-section">Unique Selling Point</div>'
-                    f'<div class="detail-body" style="font-style:italic">💡 {usp}</div>',
-                    unsafe_allow_html=True)
+    if summary:
+        html_parts.append(section("About", summary))
+
+    if usp:
+        html_parts.append(section("Unique Selling Point", f"<em>💡 {usp}</em>"))
 
     if prod_str:
-        st.markdown(f'<div class="detail-section">Products & Services</div>'
-                    f'<div class="detail-body">📦 {prod_str}</div>', unsafe_allow_html=True)
+        html_parts.append(section("Products &amp; Services", f"📦 {prod_str}"))
 
-    # Contact
-    if contact and contact not in ("nan",""):
-        conf_badge = (f' <span style="color:#059669;font-size:0.7rem">({c_conf} confidence)</span>'
-                      if c_conf not in ("","nan","low") else "")
-        st.markdown(
-            f'<div class="detail-section">Key Contact</div>'
-            f'<div class="detail-body">👤 <strong>{contact}</strong>'
-            f'{("  —  "+c_title) if c_title and c_title!="nan" else ""}'
-            f'{conf_badge}'
-            f'{("<br>📧 "+c_email) if c_email and "@" in c_email and c_email != email else ""}'
-            f'</div>',
-            unsafe_allow_html=True)
+    if contact:
+        conf_badge = (f' <span style="color:#059669;font-size:0.7rem;">({c_conf} confidence)</span>'
+                      if c_conf not in ("","low") else "")
+        contact_html = f'👤 <strong>{contact}</strong>'
+        if c_title:
+            contact_html += f'  —  {c_title}'
+        contact_html += conf_badge
+        if c_email and "@" in c_email and c_email != email:
+            contact_html += f'<br>📧 {c_email}'
+        html_parts.append(section("Key Contact", contact_html))
 
-    # Compliance
-    st.markdown(f'<div class="detail-section">Compliance</div>'
-                f'<div style="margin:4px 0 0">{gap_html}</div>', unsafe_allow_html=True)
+    html_parts.append(section("Compliance", gap_html))
 
-    if isinstance(certs, list) and certs:
-        st.markdown(f'<div class="detail-section">Certifications</div>'
-                    f'<div class="detail-body">{" · ".join(certs[:8])}</div>',
-                    unsafe_allow_html=True)
+    if certs:
+        html_parts.append(section("Certifications", " · ".join(certs[:8])))
 
-    if isinstance(exports, list) and exports:
-        st.markdown(f'<div class="detail-section">Export Markets</div>'
-                    f'<div class="detail-body">{" · ".join(exports[:6])}</div>',
-                    unsafe_allow_html=True)
+    if exports:
+        html_parts.append(section("Export Markets", " · ".join(exports[:6])))
 
-    if isinstance(key_cust, list) and key_cust:
-        st.markdown(f'<div class="detail-section">Key Customers</div>'
-                    f'<div class="detail-body">{" · ".join(key_cust[:4])}</div>',
-                    unsafe_allow_html=True)
+    if key_cust:
+        html_parts.append(section("Key Customers", " · ".join(key_cust[:4])))
 
-    # AI intelligence signals
     if signals:
-        st.markdown(f'<div class="detail-section">Intelligence Signals</div>'
-                    f'<div class="detail-body">{"  ".join(signals)}</div>',
-                    unsafe_allow_html=True)
+        html_parts.append(section("Intelligence Signals", "  ".join(signals)))
 
-    # Recent news
     if news:
         news_html = "<br>".join(
-            f'<a href="{n.get("url","#")}" target="_blank" class="detail-link">'
-            f'📰 {n.get("title","")[:70]}</a>'
-            for n in news[:3])
-        st.markdown(f'<div class="detail-section">Recent News</div>'
-                    f'<div class="detail-body">{news_html}</div>', unsafe_allow_html=True)
+            f'<a href="{n.get("url","#")}" target="_blank" '
+            f'style="color:#1e40af;font-weight:600;text-decoration:none;">'
+            f'📰 {str(n.get("title",""))[:70]}</a>'
+            for n in news[:3] if n.get("title")
+        )
+        if news_html:
+            html_parts.append(section("Recent News", news_html))
 
-    # Flagged
-    if not is_valid and rejection and rejection not in ("nan",""):
-        st.markdown(
+    if not is_valid and rejection:
+        html_parts.append(
             f'<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;'
-            f'padding:8px 12px;font-size:0.78rem;color:#b91c1c;margin-top:10px">'
-            f'⚠️ AI note: {rejection}</div>',
-            unsafe_allow_html=True)
+            f'padding:8px 12px;font-size:0.78rem;color:#b91c1c;margin-top:12px;">⚠️ AI note: {rejection}</div>')
 
-    # Links row
     if links_html:
-        st.markdown(f'<div class="detail-links">{links_html}</div>',
-                    unsafe_allow_html=True)
+        html_parts.append(
+            f'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:16px;'
+            f'padding-top:12px;border-top:1px solid #f1f5f9;">{links_html}</div>')
 
-    st.markdown('</div>', unsafe_allow_html=True)   # close detail-card
+    html_parts.append("</div>")  # close main card div
 
-    # ── Directory extraction ──
+    # ── Emit entire card in ONE call ──
+    st.markdown("".join(html_parts), unsafe_allow_html=True)
+
+    # ── Directory section — uses st widgets so rendered after HTML ──
     if is_dir:
-        st.markdown(f"""
-        <div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:10px;
-             padding:10px 14px;margin-top:10px;font-size:0.82rem;color:#7e22ce">
-          📂 <strong>Directory</strong> — lists ~{dir_count} companies inside
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f'<div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:10px;'
+            f'padding:10px 14px;margin-top:10px;font-size:0.82rem;color:#7e22ce;">'
+            f'📂 <strong>Directory page</strong> — lists ~{dir_count} companies inside</div>',
+            unsafe_allow_html=True)
 
         if dir_cos:
             st.markdown(f"**{len(dir_cos)} companies extracted:**")
-            for c in dir_cos[:25]:
-                c_name = str(c.get("company","—"))
-                c_city = str(c.get("city",""))
-                c_ph   = str(c.get("phone",""))
-                c_em   = str(c.get("email",""))
-                c_web  = str(c.get("website",""))
-                c_prod = str(c.get("products",""))[:60]
+            # Build all dir items as one HTML block
+            dir_html_parts = []
+            for c in dir_cos[:30]:
+                c_name = _safe(str(c.get("company",""))) or "—"
+                c_city = _safe(str(c.get("city","")))
+                c_em   = _safe(str(c.get("email","")))
+                c_web  = _safe(str(c.get("website","")))
+                c_prod = _safe(str(c.get("products","")))[:60]
                 lnk = ""
-                if c_web and c_web not in ("nan","—",""):
-                    lnk += f'  <a class="detail-link" href="{c_web}" target="_blank">🌐</a>'
+                if c_web:
+                    lnk += f' <a href="{c_web}" target="_blank" style="color:#1e40af;font-size:0.75rem;font-weight:600;">🌐</a>'
                 if c_em and "@" in c_em:
-                    lnk += f'  <a class="detail-link" href="mailto:{c_em}">📧</a>'
-                st.markdown(f"""
-                <div class="detail-dir-item">
-                  <strong>{c_name}</strong>
-                  {'  ·  📍'+c_city if c_city and c_city not in ('nan','—') else ''}
-                  {lnk}
-                  {'<br><span style="color:#64748b">'+c_prod+'</span>' if c_prod and c_prod not in ('nan','—') else ''}
-                </div>
-                """, unsafe_allow_html=True)
-            if len(dir_cos) > 25:
-                st.caption(f"…and {len(dir_cos)-25} more")
+                    lnk += f' <a href="mailto:{c_em}" style="color:#1e40af;font-size:0.75rem;font-weight:600;">📧</a>'
+                loc_str = f"  ·  📍{c_city}" if c_city else ""
+                prod_str_c = f'<br><span style="color:#64748b;">{c_prod}</span>' if c_prod else ""
+                dir_html_parts.append(
+                    f'<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;'
+                    f'padding:7px 11px;margin-bottom:4px;font-size:0.78rem;color:#334155;">'
+                    f'<strong style="color:#1e293b;">{c_name}</strong>{loc_str}{lnk}{prod_str_c}</div>'
+                )
+            st.markdown("".join(dir_html_parts), unsafe_allow_html=True)
+            if len(dir_cos) > 30:
+                st.caption(f"…and {len(dir_cos)-30} more")
             df_dir = pd.DataFrame([{
                 "Company":c.get("company",""), "City":c.get("city",""),
                 "Phone":c.get("phone",""), "Email":c.get("email",""),
@@ -2443,8 +2469,9 @@ def _render_detail_panel(cid: str):
                                file_name=f"dir_{cid[:8]}.csv", mime="text/csv",
                                key=f"dl_det_dir_{cid}")
         else:
-            if st.button("⚡ Extract all companies", key=f"det_extract_{cid}",
-                         type="primary", use_container_width=True):
+            if st.button("⚡ Extract all companies from directory",
+                         key=f"det_extract_{cid}", type="primary",
+                         use_container_width=True):
                 with st.spinner("Extracting with AI… 30–60 seconds"):
                     try:
                         r = _api_post("/leads/extract-directory",
@@ -2453,8 +2480,7 @@ def _render_detail_panel(cid: str):
                                             "query": st.session_state.active_query},
                                       timeout=120)
                         if r.status_code == 200:
-                            res = r.json()
-                            cos = res.get("companies", [])
+                            cos = r.json().get("companies", [])
                             updated = dict(st.session_state.card_details.get(cid, row))
                             updated["directory_companies"] = cos
                             st.session_state.card_details[cid] = updated
@@ -2467,7 +2493,7 @@ def _render_detail_panel(cid: str):
 
 
 # ===========================================================================
-# _show_results — master-detail split layout (left list, right detail)
+# _show_results — true master-detail: left list + right detail panel
 # ===========================================================================
 def _show_results(leads: list, key_suffix: str = "tab"):
     if not leads:
@@ -2484,10 +2510,10 @@ def _show_results(leads: list, key_suffix: str = "tab"):
     count_txt = (f"{len(filtered)} of {len(leads)} companies"
                  if len(filtered) != len(leads) else f"{len(leads)} companies")
 
-    # Header row — count + table toggle
+    # Header
     hc1, hc2 = st.columns([4, 1])
     with hc1:
-        st.caption(f"Showing **{count_txt}** · Select a company to see details")
+        st.caption(f"Showing **{count_txt}** · Click **Open →** to view details")
     with hc2:
         view = st.radio("View", ["Cards", "Table"], horizontal=True,
                         key=f"view_{key_suffix}",
@@ -2498,11 +2524,9 @@ def _show_results(leads: list, key_suffix: str = "tab"):
         _show_table(filtered, key_suffix=key_suffix)
         return
 
-    # ── Master-detail split ──
+    # Master-detail split
     selected_cid = st.session_state.get("selected_card")
-
-    # Determine if detail panel should show (card selected AND it belongs to this tab)
-    show_detail = (
+    show_detail  = (
         selected_cid is not None
         and selected_cid in st.session_state.card_details
         and st.session_state.get("selected_tab", "") == key_suffix
@@ -2510,22 +2534,12 @@ def _show_results(leads: list, key_suffix: str = "tab"):
 
     if show_detail:
         col_left, col_right = st.columns([2, 3], gap="medium")
-    else:
-        col_left  = st.container()
-        col_right = None
-
-    # Left — card list
-    with col_left:
-        st.markdown('<div class="master-panel">', unsafe_allow_html=True)
-        _render_card_list(filtered, key_suffix=key_suffix)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    # Right — detail panel
-    if show_detail and col_right is not None:
+        with col_left:
+            _render_card_list(filtered, key_suffix=key_suffix)
         with col_right:
-            st.markdown('<div class="detail-panel">', unsafe_allow_html=True)
             _render_detail_panel(selected_cid)
-            st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        _render_card_list(filtered, key_suffix=key_suffix)
 
     # CSV export
     if filtered:
@@ -2533,7 +2547,7 @@ def _show_results(leads: list, key_suffix: str = "tab"):
         for c in ["compliance_gaps","products","certifications","export_markets","key_customers"]:
             if c in df_exp.columns:
                 df_exp[c] = df_exp[c].apply(
-                    lambda v: ", ".join(v) if isinstance(v, list) else str(v or ""))
+                    lambda v: ", ".join(str(x) for x in v) if isinstance(v, list) else str(v or ""))
         st.download_button(
             "⬇️ Export as CSV",
             data=df_exp.to_csv(index=False).encode("utf-8"),
