@@ -27,11 +27,11 @@ POLL_SECONDS = 2
 st.set_page_config(
     page_title="Buyera — Find Business Leads",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",   # ← ADDED: sidebar open by default
 )
 
 # ---------------------------------------------------------------------------
-# CSS
+# CSS  (original + new collapsed-cell styles added at the bottom)
 # ---------------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -335,14 +335,12 @@ label, .stSelectbox label, .stTextInput label,
     font-weight: 600 !important;
 }
 
-/* Expander header text black */
 [data-testid="stExpander"] summary p,
 [data-testid="stExpander"] summary {
     color: #111827 !important;
     font-weight: 600 !important;
 }
 
-/* Tab labels */
 [data-testid="stTabs"] [role="tab"] {
     color: #111827 !important;
 }
@@ -350,34 +348,22 @@ label, .stSelectbox label, .stTextInput label,
     color: white !important;
 }
 
-/* Radio options */
 .stRadio div[role="radiogroup"] label {
     color: #111827 !important;
     font-weight: 500 !important;
 }
 
-/* Slider label */
 .stSlider > label {
     color: #111827 !important;
     font-weight: 600 !important;
 }
 
-/* Section headers inside expanders */
 .stMarkdown p, .stMarkdown strong {
     color: #111827 !important;
 }
 
+.stApp, .stApp * { color: #111827; }
 
-/* =====================================================
-   GLOBAL TEXT COLOR FIXES — all text black on white
-   ===================================================== */
-
-/* Body and app background */
-.stApp, .stApp * {
-    color: #111827;
-}
-
-/* Input text — typing color */
 .stTextInput input,
 .stTextInput input::placeholder,
 input[type="text"],
@@ -392,7 +378,6 @@ textarea {
     -webkit-text-fill-color: #9ca3af !important;
 }
 
-/* Selectbox text */
 .stSelectbox div[data-baseweb="select"] span,
 .stSelectbox div[data-baseweb="select"] div,
 .stSelectbox [data-testid="stMarkdownContainer"] p,
@@ -401,7 +386,6 @@ div[data-baseweb="select"] > div {
     background-color: white !important;
 }
 
-/* Selectbox dropdown options */
 ul[role="listbox"] li,
 ul[role="listbox"] li span,
 div[role="option"],
@@ -415,7 +399,6 @@ div[role="option"]:hover {
     color: #1e40af !important;
 }
 
-/* All labels — every widget */
 label, p, span, div,
 [data-testid="stWidgetLabel"],
 [data-testid="stWidgetLabel"] p,
@@ -428,37 +411,19 @@ label, p, span, div,
     color: #111827 !important;
 }
 
-/* Metric cards — keep numbers dark */
-[data-testid="stMetricValue"] {
-    color: #111827 !important;
-}
-[data-testid="stMetricLabel"] {
-    color: #6b7280 !important;
-}
+[data-testid="stMetricValue"] { color: #111827 !important; }
+[data-testid="stMetricLabel"] { color: #6b7280 !important; }
+.stCaption, [data-testid="stCaptionContainer"] p { color: #6b7280 !important; }
 
-/* Caption / small text */
-.stCaption, [data-testid="stCaptionContainer"] p {
-    color: #6b7280 !important;
-}
+[data-testid="stTabs"] [role="tab"] { color: #374151 !important; font-weight: 600 !important; }
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] { color: white !important; background: #1e40af !important; }
 
-/* Tab text */
-[data-testid="stTabs"] [role="tab"] {
-    color: #374151 !important;
-    font-weight: 600 !important;
-}
-[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
-    color: white !important;
-    background: #1e40af !important;
-}
-
-/* Expander header */
 [data-testid="stExpander"] details summary p,
 [data-testid="stExpander"] summary p {
     color: #111827 !important;
     font-weight: 600 !important;
 }
 
-/* Slider labels and values */
 .stSlider label,
 .stSlider [data-testid="stWidgetLabel"] p,
 .stSlider div[data-testid="stTickBarMin"],
@@ -467,26 +432,20 @@ label, p, span, div,
     color: #111827 !important;
 }
 
-/* Radio button labels */
 .stRadio > div label p,
 .stRadio > div [data-testid="stMarkdownContainer"] p {
     color: #111827 !important;
     font-weight: 500 !important;
 }
 
-/* Checkbox labels */
 .stCheckbox > label > div p,
 .stCheckbox [data-testid="stMarkdownContainer"] p {
     color: #111827 !important;
 }
 
-/* Info/success/warning/error boxes */
 [data-testid="stAlert"] p,
-[data-testid="stAlert"] div {
-    color: #111827 !important;
-}
+[data-testid="stAlert"] div { color: #111827 !important; }
 
-/* Download button text */
 .stDownloadButton button {
     color: #111827 !important;
     background: white !important;
@@ -497,39 +456,18 @@ label, p, span, div,
     border-color: #1e40af !important;
 }
 
-/* Override the blue highlight issue from screenshot 1 */
-::selection {
-    background: #bfdbfe;
-    color: #1e40af;
-}
-
-/* Sidebar and main area text */
+::selection { background: #bfdbfe; color: #1e40af; }
 [data-testid="stSidebar"] * { color: #111827 !important; }
 
-/* Dataframe text */
 [data-testid="stDataFrame"] table,
 [data-testid="stDataFrame"] th,
-[data-testid="stDataFrame"] td {
-    color: #111827 !important;
-}
+[data-testid="stDataFrame"] td { color: #111827 !important; }
 
-/* Toast notifications */
 [data-testid="stToast"] p { color: #111827 !important; }
 
-/* Buttons keep white text */
-.stButton > button {
-    color: white !important;
-}
-.stButton > button:hover {
-    color: white !important;
-}
+.stButton > button { color: white !important; }
+.stButton > button:hover { color: white !important; }
 
-
-/* =====================================================
-   DROPDOWN + BUTTON FIXES
-   ===================================================== */
-
-/* Selectbox trigger box — white background, black text */
 div[data-baseweb="select"],
 div[data-baseweb="select"] > div,
 div[data-baseweb="select"] > div > div,
@@ -540,7 +478,6 @@ div[data-baseweb="select"] > div > div,
     border-color: #e2e8f0 !important;
 }
 
-/* Selectbox selected value text */
 div[data-baseweb="select"] span,
 div[data-baseweb="select"] [class*="placeholder"],
 div[data-baseweb="select"] [class*="singleValue"],
@@ -550,7 +487,6 @@ div[data-baseweb="select"] input {
     background: transparent !important;
 }
 
-/* Dropdown popup menu — white background */
 ul[role="listbox"],
 div[role="listbox"],
 [data-baseweb="popover"],
@@ -564,7 +500,6 @@ div[role="listbox"],
     box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
 }
 
-/* Dropdown individual options */
 ul[role="listbox"] li,
 [data-baseweb="menu"] li,
 [role="option"],
@@ -581,7 +516,6 @@ li[role="option"] * {
     background-color: transparent !important;
 }
 
-/* Dropdown option hover */
 ul[role="listbox"] li:hover,
 [role="option"]:hover,
 div[role="option"]:hover,
@@ -593,16 +527,8 @@ li[role="option"]:hover,
 }
 ul[role="listbox"] li:hover *,
 [role="option"]:hover *,
-div[role="option"]:hover * {
-    color: #1e40af !important;
-}
+div[role="option"]:hover * { color: #1e40af !important; }
 
-/* =====================================================
-   BUTTON FIXES — white background, dark text
-   (for non-primary action buttons)
-   ===================================================== */
-
-/* Default (secondary) buttons — white bg, black text */
 .stButton > button[kind="secondary"],
 .stButton > button:not([kind="primary"]) {
     background: white !important;
@@ -616,7 +542,6 @@ div[role="option"]:hover * {
     border-color: #1e40af !important;
 }
 
-/* Primary buttons stay blue with white text */
 .stButton > button[kind="primary"],
 div[data-testid="stButton"] > button[kind="primary"] {
     background: #1e40af !important;
@@ -628,14 +553,12 @@ div[data-testid="stButton"] > button[kind="primary"] {
     color: white !important;
 }
 
-/* Search button specifically */
 .search-btn .stButton > button {
     background: #1e40af !important;
     color: white !important;
     border: none !important;
 }
 
-/* Refresh / logout / clear / small action buttons — white bg dark text */
 button[data-testid="baseButton-secondary"],
 .stButton > button[data-testid="baseButton-secondary"] {
     background: white !important;
@@ -643,7 +566,6 @@ button[data-testid="baseButton-secondary"],
     border: 1.5px solid #d1d5db !important;
 }
 
-/* Logout button */
 div[data-testid="stButton"]:has(button#logout_btn) button,
 #logout_btn {
     background: white !important;
@@ -651,7 +573,6 @@ div[data-testid="stButton"]:has(button#logout_btn) button,
     border: 1.5px solid #d1d5db !important;
 }
 
-/* Download button */
 .stDownloadButton > button {
     background: white !important;
     color: #111827 !important;
@@ -664,25 +585,100 @@ div[data-testid="stButton"]:has(button#logout_btn) button,
     color: #1e40af !important;
 }
 
-/* Compliance check button — keep primary style */
 button[key="enrich_btn"],
 div[data-testid="stButton"]:has(button[key="enrich_btn"]) button {
     background: #1e40af !important;
     color: white !important;
 }
 
-/* Tab selected stays white text */
 [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
     color: white !important;
     background: #1e40af !important;
 }
 
-/* Multiselect tags */
-[data-baseweb="tag"] {
-    background: #eff6ff !important;
-    color: #1e40af !important;
-}
+[data-baseweb="tag"] { background: #eff6ff !important; color: #1e40af !important; }
 [data-baseweb="tag"] span { color: #1e40af !important; }
+
+/* =====================================================
+   ADDED: Collapsed lead-cell styles
+   ===================================================== */
+.lead-cell {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 11px 16px;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: box-shadow 0.12s, border-color 0.12s;
+}
+.lead-cell:hover {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+    border-color: #93c5fd;
+}
+.cell-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: #eff6ff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+}
+.cell-body { flex: 1; min-width: 0; }
+.cell-name {
+    font-size: 0.9rem; font-weight: 700; color: #1e293b;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cell-meta {
+    font-size: 0.73rem; color: #64748b; margin-top: 1px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cell-right {
+    display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+}
+
+/* Expanded card */
+.expanded-card {
+    background: white;
+    border: 1.5px solid #93c5fd;
+    border-radius: 12px;
+    padding: 20px 22px 16px;
+    margin-bottom: 8px;
+    box-shadow: 0 4px 18px rgba(30,64,175,0.08);
+}
+.expanded-title { font-size: 1.1rem; font-weight: 800; color: #1e293b; margin: 0 0 3px; }
+.expanded-sub   { font-size: 0.78rem; color: #64748b; margin-bottom: 12px; }
+.expanded-section {
+    font-size: 0.68rem; font-weight: 700; color: #94a3b8;
+    text-transform: uppercase; letter-spacing: .07em; margin: 12px 0 4px;
+}
+.expanded-body { font-size: 0.82rem; color: #334155; line-height: 1.6; }
+.dir-item {
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: 7px; padding: 8px 12px; margin-bottom: 4px;
+    font-size: 0.79rem; color: #334155;
+}
+.dir-item strong { color: #1e293b; }
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background: #fafafa !important;
+    border-right: 1px solid #e2e8f0 !important;
+}
+[data-testid="stSidebar"] .stSelectbox > div > div,
+[data-testid="stSidebar"] .stTextInput input {
+    background: white !important;
+    border: 1px solid #e2e8f0 !important;
+    font-size: 0.82rem !important;
+}
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
+    font-size: 0.73rem !important;
+    font-weight: 600 !important;
+    color: #475569 !important;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
 
 </style>
 """, unsafe_allow_html=True)
@@ -707,7 +703,7 @@ def _api_delete(path, **kwargs):
                            timeout=kwargs.pop("timeout", 15), **kwargs)
 
 # ---------------------------------------------------------------------------
-# Login page
+# Login page  (unchanged)
 # ---------------------------------------------------------------------------
 def _show_login_page():
     st.markdown("""
@@ -805,7 +801,7 @@ if not st.session_state.auth_token:
     st.stop()
 
 # ---------------------------------------------------------------------------
-# Constants
+# Constants  (unchanged)
 # ---------------------------------------------------------------------------
 GAP_LABELS = {
     "no_bis":        "No BIS Licence",
@@ -846,9 +842,6 @@ COUNTRY_STATES = {
 }
 ALL_COUNTRIES = ["Any Country"] + sorted(COUNTRY_STATES.keys())
 
-# ---------------------------------------------------------------------------
-# Column definitions — human-friendly names
-# ---------------------------------------------------------------------------
 ALL_COLUMNS = {
     "company":            "Company Name",
     "city":               "City",
@@ -903,9 +896,6 @@ DEFAULT_COLUMNS = [
     "email", "phone", "active_website", "ai_summary",
 ]
 
-# ---------------------------------------------------------------------------
-# City list for filter
-# ---------------------------------------------------------------------------
 ALL_CITIES = {
     "India": [
         "Mumbai","Delhi","Bangalore","Bengaluru","Hyderabad","Ahmedabad","Chennai",
@@ -945,7 +935,7 @@ QUALITY_LABELS = {
 }
 
 # ---------------------------------------------------------------------------
-# Session state
+# Session state  (ADDED: expanded_cards, card_details)
 # ---------------------------------------------------------------------------
 _DEFAULTS = {
     "active_job_id":      "",
@@ -970,10 +960,13 @@ _DEFAULTS = {
     "quality_threshold":  0,
     "sf_city":            "Any",
     "_reset_filters":     False,
+    # ── ADDED ──
+    "expanded_cards":     {},   # {card_id: bool}
+    "card_details":       {},   # {card_id: enriched_dict}
 }
 for k, v in _DEFAULTS.items():
     if k not in st.session_state:
-        st.session_state[k] = v if not isinstance(v, list) else v[:]
+        st.session_state[k] = v if not isinstance(v, (list, dict)) else type(v)()
 
 # ---------------------------------------------------------------------------
 # Process pending filter reset BEFORE any widgets render
@@ -999,8 +992,121 @@ if st.session_state.get("_reset_filters"):
         st.session_state[_k] = _v
     st.rerun()
 
+# ===========================================================================
+# ADDED: SIDEBAR — quick filters always visible
+# ===========================================================================
+with st.sidebar:
+    st.markdown(f"""
+    <div style="padding:6px 0 14px">
+      <div style="font-size:1.15rem;font-weight:800;color:#1e40af;letter-spacing:-.02em">
+        🌐 Buyera
+      </div>
+      <div style="font-size:0.72rem;color:#64748b;margin-top:2px">
+        Signed in as <strong>{st.session_state.auth_username}</strong>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if st.button("Logout", key="sb_logout_btn", use_container_width=True):
+        for k in ["auth_token","auth_user_id","auth_username","auth_role"]:
+            st.session_state[k] = ""
+        st.rerun()
+
+    st.markdown("---")
+    st.markdown("**🎛️ Filters**")
+
+    # Country
+    _ctr_idx = ALL_COUNTRIES.index(st.session_state.sf_country) \
+               if st.session_state.sf_country in ALL_COUNTRIES else 0
+    st.session_state.sf_country = st.selectbox(
+        "Country", ALL_COUNTRIES, index=_ctr_idx, key="sb_country_sel")
+
+    # State / Region
+    _state_opts = (["Any"] + COUNTRY_STATES.get(st.session_state.sf_country, [])
+                   if st.session_state.sf_country != "Any Country" else ["Any"])
+    if st.session_state.sf_state not in _state_opts:
+        st.session_state.sf_state = "Any"
+    st.session_state.sf_state = st.selectbox(
+        "State / Region", _state_opts,
+        index=_state_opts.index(st.session_state.sf_state),
+        key="sb_state_sel",
+        disabled=(st.session_state.sf_country == "Any Country"))
+
+    # Industry
+    _ind_opts = ["Any"] + ALL_INDUSTRIES
+    _ind_idx  = _ind_opts.index(st.session_state.sf_industry) \
+                if st.session_state.sf_industry in _ind_opts else 0
+    st.session_state.sf_industry = st.selectbox(
+        "Industry", _ind_opts, index=_ind_idx, key="sb_industry_sel")
+
+    # Business type
+    _ch_opts = ["Any"] + CHANNEL_TYPES
+    _ch_idx  = _ch_opts.index(st.session_state.sf_channel) \
+               if st.session_state.sf_channel in _ch_opts else 0
+    st.session_state.sf_channel = st.selectbox(
+        "Business Type", _ch_opts, index=_ch_idx, key="sb_channel_sel")
+
+    # Priority
+    _imp_opts = ["Any", "High ⭐", "Medium", "Low"]
+    _imp_idx  = _imp_opts.index(st.session_state.sf_importance) \
+                if st.session_state.sf_importance in _imp_opts else 0
+    st.session_state.sf_importance = st.selectbox(
+        "Priority", _imp_opts, index=_imp_idx, key="sb_importance_sel")
+
+    # Sort
+    _sort_opts = ["Best Match First","Priority (High → Low)",
+                  "Company Name A → Z","Company Name Z → A","Newest First"]
+    _sort_idx  = _sort_opts.index(st.session_state.sf_sort) \
+                 if st.session_state.sf_sort in _sort_opts else 0
+    st.session_state.sf_sort = st.selectbox(
+        "Sort by", _sort_opts, index=_sort_idx, key="sb_sort_sel")
+
+    st.session_state.sf_min_score = st.slider(
+        "Min score", 0.0, 1.0, st.session_state.sf_min_score, 0.05,
+        key="sb_score_sl")
+
+    st.markdown("**Quick filters**")
+    st.session_state.sf_has_email = st.checkbox("Has email",  key="sb_email_cb",
+                                                 value=st.session_state.sf_has_email)
+    st.session_state.sf_has_phone = st.checkbox("Has phone",  key="sb_phone_cb",
+                                                 value=st.session_state.sf_has_phone)
+    st.session_state.sf_gaps_only = st.checkbox("Compliance issues only",
+                                                  key="sb_gaps_cb",
+                                                  value=st.session_state.sf_gaps_only)
+
+    st.markdown("---")
+    st.markdown("**⚙️ Search options**")
+    st.session_state.scan_all = st.checkbox(
+        "Scan all pages (slower)", key="sb_scan_cb",
+        value=st.session_state.scan_all)
+    _qt_labels = ["All","Basic","Good","Best"]
+    _qt_map    = {"All":0,"Basic":1,"Good":2,"Best":3}
+    _qt_rev    = {0:"All",1:"Basic",2:"Good",3:"Best"}
+    _qt_cur    = _qt_rev.get(st.session_state.quality_threshold, "All")
+    _qt_sel    = st.select_slider("Result quality", _qt_labels,
+                                   value=_qt_cur, key="sb_qt_sl")
+    st.session_state.quality_threshold = _qt_map[_qt_sel]
+
+    st.markdown("---")
+    if st.button("❌ Clear filters", use_container_width=True, key="sb_clear_btn"):
+        st.session_state["_reset_filters"] = True
+        st.rerun()
+    if st.button("🗑️ Delete all leads", use_container_width=True, key="sb_del_btn"):
+        try:
+            _api_delete("/clear", timeout=15)
+            st.session_state.active_job_id  = ""
+            st.session_state.active_query   = ""
+            st.session_state.live_results   = []
+            st.session_state.live_cursor    = 0
+            st.session_state.notified_jobs  = []
+            st.session_state.expanded_cards = {}
+            st.session_state.card_details   = {}
+            st.rerun()
+        except Exception as e:
+            st.error(str(e))
+
 # ---------------------------------------------------------------------------
-# Top nav bar
+# Top nav bar  (unchanged)
 # ---------------------------------------------------------------------------
 st.markdown(f"""
 <div class="topbar">
@@ -1009,9 +1115,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------------------------------------------
-# Logout (small, top right via button)
-# ---------------------------------------------------------------------------
 lcol = st.columns([8, 1])[1]
 with lcol:
     if st.button("Logout", key="logout_btn"):
@@ -1019,15 +1122,14 @@ with lcol:
             st.session_state[k] = ""
         st.rerun()
 
-# ===========================================================================
-# SESSION RESTORE — reload last active job after browser refresh / session reset
-# ===========================================================================
+# ---------------------------------------------------------------------------
+# Session restore  (unchanged)
+# ---------------------------------------------------------------------------
 if st.session_state.auth_token and not st.session_state.active_job_id:
     try:
         rj = _api_get("/jobs/recent", timeout=10)
         if rj.status_code == 200:
             recent = rj.json()
-            # Find the most recent completed or running job
             for job in recent[:5]:
                 if job.get("status") in ("completed", "running", "queued"):
                     st.session_state.active_job_id = job.get("job_id", "")
@@ -1037,7 +1139,7 @@ if st.session_state.auth_token and not st.session_state.active_job_id:
         pass
 
 # ===========================================================================
-# HERO SEARCH SECTION
+# HERO SEARCH SECTION  (unchanged)
 # ===========================================================================
 st.markdown("""
 <div class="search-hero">
@@ -1046,7 +1148,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Search bar row
 sc1, sc2, sc3 = st.columns([5, 1, 1])
 with sc1:
     query = st.text_input(
@@ -1056,7 +1157,6 @@ with sc1:
         label_visibility="collapsed",
         key="search_input_box",
     )
-    # Keep sf_query in sync without assigning directly to widget key
     st.session_state.sf_query = query
 with sc2:
     st.markdown('<div class="search-btn">', unsafe_allow_html=True)
@@ -1067,27 +1167,18 @@ with sc3:
     if refresh_clicked:
         st.rerun()
 
-# Example queries
 st.markdown("""
 <div class="chip-row" style="justify-content:flex-start;margin:8px 0 4px">
   <span style="font-size:0.78rem;color:#94a3b8;margin-right:4px">Try:</span>
-  <span class="chip" style="background:#eff6ff;color:#1e40af;border-color:#bfdbfe">
-    Electronics importers Delhi
-  </span>
-  <span class="chip" style="background:#f0fdf4;color:#166534;border-color:#bbf7d0">
-    Textile manufacturers Surat
-  </span>
-  <span class="chip" style="background:#fdf4ff;color:#7e22ce;border-color:#e9d5ff">
-    Pharma distributors Mumbai
-  </span>
-  <span class="chip" style="background:#fff7ed;color:#9a3412;border-color:#fed7aa">
-    Steel traders UAE
-  </span>
+  <span class="chip" style="background:#eff6ff;color:#1e40af;border-color:#bfdbfe">Electronics importers Delhi</span>
+  <span class="chip" style="background:#f0fdf4;color:#166534;border-color:#bbf7d0">Textile manufacturers Surat</span>
+  <span class="chip" style="background:#fdf4ff;color:#7e22ce;border-color:#e9d5ff">Pharma distributors Mumbai</span>
+  <span class="chip" style="background:#fff7ed;color:#9a3412;border-color:#fed7aa">Steel traders UAE</span>
 </div>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Build and trigger search
+# Build and trigger search  (unchanged)
 # ---------------------------------------------------------------------------
 def _build_final_query() -> str:
     parts = [st.session_state.sf_query.strip()]
@@ -1123,22 +1214,25 @@ if search_clicked:
                 "scan_all_remaining": str(st.session_state.scan_all).lower(),
                 "country_filter":     cf,
                 "trusted_only":       "false",
+                "quality_threshold":  st.session_state.quality_threshold,
             }, timeout=30)
             if r.status_code == 200:
                 d = r.json()
-                st.session_state.active_job_id = d.get("job_id", "")
-                st.session_state.active_query  = fq
-                st.session_state.live_results  = []
-                st.session_state.live_cursor   = 0
+                st.session_state.active_job_id  = d.get("job_id", "")
+                st.session_state.active_query   = fq
+                st.session_state.live_results   = []
+                st.session_state.live_cursor    = 0
+                st.session_state.expanded_cards = {}
+                st.session_state.card_details   = {}
                 st.rerun()
             else:
                 st.error(f"Search error: {r.text}")
         except Exception as e:
             st.error(f"Cannot reach server: {e}")
 
-# ===========================================================================
-# FILTER BAR  (shown only when there are results)
-# ===========================================================================
+# ---------------------------------------------------------------------------
+# Fetch all leads  (unchanged)
+# ---------------------------------------------------------------------------
 def _get_all_leads() -> list:
     cf = "" if st.session_state.sf_country == "Any Country" \
          else st.session_state.sf_country.lower()
@@ -1153,21 +1247,20 @@ def _get_all_leads() -> list:
         pass
     return []
 
-raw_leads = _get_all_leads()
+raw_leads     = _get_all_leads()
 company_leads = [x for x in raw_leads if x.get("source") != "linkedin_semantic"]
 
 if company_leads or st.session_state.active_job_id:
     st.markdown("---")
 
     # -----------------------------------------------------------------------
-    # FILTER SECTION
+    # FILTER EXPANDER  (kept — still works alongside sidebar)
     # -----------------------------------------------------------------------
     def _clear_filters_cb():
-        """Set a flag — the actual reset happens at top of script before widgets render."""
         st.session_state["_reset_filters"] = True
 
     with st.expander("🎛️  Filters & Options", expanded=False):
-        st.markdown("**Narrow down your results**")
+        st.markdown("**Narrow down your results** *(also available in the sidebar)*")
         f1, f2, f3, f4 = st.columns(4)
 
         with f1:
@@ -1230,23 +1323,23 @@ if company_leads or st.session_state.active_job_id:
             if st.button("🗑️ Delete All Leads", use_container_width=True):
                 try:
                     _api_delete("/clear", timeout=15)
-                    # Only reset non-widget state keys
-                    st.session_state.active_job_id = ""
-                    st.session_state.active_query  = ""
-                    st.session_state.live_results  = []
-                    st.session_state.live_cursor   = 0
-                    st.session_state.notified_jobs = []
+                    st.session_state.active_job_id  = ""
+                    st.session_state.active_query   = ""
+                    st.session_state.live_results   = []
+                    st.session_state.live_cursor    = 0
+                    st.session_state.notified_jobs  = []
+                    st.session_state.expanded_cards = {}
+                    st.session_state.card_details   = {}
                     st.rerun()
                 except Exception as e:
                     st.error(str(e))
 
     # -----------------------------------------------------------------------
-    # COLUMN PICKER
+    # COLUMN PICKER  (unchanged)
     # -----------------------------------------------------------------------
     with st.expander("📋  Choose Which Columns to Show", expanded=False):
         st.markdown("**Pick exactly what information you want to see in the table**")
 
-        # Group columns for easier understanding
         col_groups = {
             "🏢 Company Info": ["company","city","country_detected","industry_detected",
                                 "product_type","channel_type","company_size","incorporation_date"],
@@ -1267,7 +1360,6 @@ if company_leads or st.session_state.active_job_id:
         for group_name, group_cols in col_groups.items():
             st.markdown(f"**{group_name}**")
             gcols = st.columns(4)
-            # make a safe group prefix from the group name
             grp_prefix = re.sub(r"[^a-z0-9]", "_", group_name.lower())[:12]
             for i, col_key in enumerate(group_cols):
                 widget_key = f"col_{grp_prefix}_{col_key}"
@@ -1294,7 +1386,7 @@ if company_leads or st.session_state.active_job_id:
                 st.rerun()
 
 # ===========================================================================
-# LIVE SEARCH STATUS
+# LIVE SEARCH STATUS  (unchanged)
 # ===========================================================================
 if st.session_state.active_job_id:
     status = None
@@ -1306,7 +1398,7 @@ if st.session_state.active_job_id:
         st.error(f"Cannot reach server: {e}")
 
     if status:
-        sv = status.get("status", "")
+        sv    = status.get("status", "")
         saved = status.get("saved_total", 0)
         pages = status.get("pages_scanned", 0)
 
@@ -1363,7 +1455,7 @@ if st.session_state.active_job_id:
             st.session_state.active_job_id = ""
 
 # ===========================================================================
-# APPLY FILTERS TO LEADS
+# APPLY FILTERS  (unchanged)
 # ===========================================================================
 def _apply_filters(leads: list) -> list:
     df = pd.DataFrame(leads) if leads else pd.DataFrame()
@@ -1393,14 +1485,12 @@ def _apply_filters(leads: list) -> list:
         df = df[df["phone"].astype(str).str.strip().ne("").ne("nan")]
 
     if st.session_state.sf_gaps_only and "compliance_gaps" in df.columns:
-        df = df[df["compliance_gaps"].apply(
-            lambda g: isinstance(g, list) and len(g) > 0)]
+        df = df[df["compliance_gaps"].apply(lambda g: isinstance(g, list) and len(g) > 0)]
 
     if st.session_state.sf_industry != "Any" and "industry_detected" in df.columns:
         df = df[df["industry_detected"].astype(str).str.lower()
                 .str.contains(st.session_state.sf_industry.lower(), na=False)]
 
-    # Sort
     sort = st.session_state.sf_sort
     if "final_score" in df.columns:
         scores = pd.to_numeric(df["final_score"], errors="coerce").fillna(0)
@@ -1420,7 +1510,7 @@ def _apply_filters(leads: list) -> list:
     return df.reset_index(drop=True).to_dict("records")
 
 # ===========================================================================
-# DISPLAY HELPERS
+# DISPLAY HELPERS  (all originals kept)
 # ===========================================================================
 def _bool_icon(val):
     if val is True:  return "✅"
@@ -1442,27 +1532,26 @@ def _gap_pill(gaps):
 def _show_metrics(leads: list):
     if not leads:
         return
-    df = pd.DataFrame(leads)
+    df     = pd.DataFrame(leads)
     total  = len(df)
     high   = int((df.get("importance", pd.Series(dtype=str)).astype(str).str.lower() == "high").sum()) \
              if "importance" in df.columns else 0
     w_email= int(df["email"].astype(str).str.contains("@", na=False).sum()) \
              if "email" in df.columns else 0
-    w_gap  = int(df["compliance_gaps"].apply(
-                 lambda g: isinstance(g, list) and len(g) > 0).sum()) \
+    w_gap  = int(df["compliance_gaps"].apply(lambda g: isinstance(g, list) and len(g) > 0).sum()) \
              if "compliance_gaps" in df.columns else 0
     mfg    = int((df.get("channel_type", pd.Series(dtype=str)).astype(str) == "Manufacturer").sum()) \
              if "channel_type" in df.columns else 0
-
     m1,m2,m3,m4,m5 = st.columns(5)
-    m1.metric("Companies Found", total)
-    m2.metric("⭐ High Priority",  high)
-    m3.metric("📧 Have Email",     w_email)
-    m4.metric("⚠️ Compliance Issues", w_gap)
-    m5.metric("🏭 Manufacturers",  mfg)
+    m1.metric("Companies Found",       total)
+    m2.metric("⭐ High Priority",       high)
+    m3.metric("📧 Have Email",          w_email)
+    m4.metric("⚠️ Compliance Issues",  w_gap)
+    m5.metric("🏭 Manufacturers",       mfg)
 
 
 def _show_cards(leads: list):
+    """Original full-card render — kept for Table/Cards toggle."""
     if not leads:
         st.markdown("""
         <div class="empty-state">
@@ -1474,48 +1563,44 @@ def _show_cards(leads: list):
         return
 
     for row in leads:
-        company = str(row.get("company", "Unknown Company"))
-        city    = str(row.get("city", ""))
-        country = str(row.get("country_detected", ""))
-        industry= str(row.get("industry_detected", ""))
-        channel = str(row.get("channel_type", ""))
-        score   = float(row.get("final_score", 0) or 0)
-        imp     = str(row.get("importance", "low"))
-        gaps    = row.get("compliance_gaps", [])
-        email   = str(row.get("email", ""))
-        phone   = str(row.get("phone", ""))
-        website = str(row.get("active_website", row.get("website", "")))
-        linkedin= str(row.get("linkedin_url", ""))
-        summary = str(row.get("ai_summary", ""))[:200]
-        products= row.get("products", [])
-        size    = str(row.get("company_size", ""))
-        founded = str(row.get("incorporation_date", ""))
-
+        company  = str(row.get("company", "Unknown Company"))
+        city     = str(row.get("city", ""))
+        country  = str(row.get("country_detected", ""))
+        industry = str(row.get("industry_detected", ""))
+        channel  = str(row.get("channel_type", ""))
+        score    = float(row.get("final_score", 0) or 0)
+        imp      = str(row.get("importance", "low"))
+        gaps     = row.get("compliance_gaps", [])
+        email    = str(row.get("email", ""))
+        phone    = str(row.get("phone", ""))
+        website  = str(row.get("active_website", row.get("website", "")))
+        linkedin = str(row.get("linkedin_url", ""))
+        summary  = str(row.get("ai_summary", ""))[:200]
+        products = row.get("products", [])
+        size     = str(row.get("company_size", ""))
+        founded  = str(row.get("incorporation_date", ""))
         location = ", ".join(filter(None, [city, country]))
-        tags     = [t for t in [industry, channel, size,
-                                 f"Est. {founded}" if founded else ""]
+        tags     = [t for t in [industry, channel, size, f"Est. {founded}" if founded else ""]
                     if t and t != "nan"]
         prod_str = ""
         if isinstance(products, list) and products:
             prod_str = ", ".join(str(p) for p in products[:4])
-
-        turnover  = str(row.get("annual_turnover", ""))
-        certs     = row.get("certifications", [])
-        exports   = row.get("export_markets", [])
-        usp       = str(row.get("usp", ""))[:120]
-        key_cust  = row.get("key_customers", [])
-
-        twitter   = str(row.get("twitter_url",   ""))
-        facebook  = str(row.get("facebook_url",  ""))
-        instagram = str(row.get("instagram_url", ""))
-        youtube   = str(row.get("youtube_url",   ""))
-        whatsapp  = str(row.get("whatsapp_url",  ""))
-        ctitle    = str(row.get("contact_title",    ""))
-        cconfidence = str(row.get("contact_confidence",""))
-        is_dir    = bool(row.get("is_directory", False))
-        dir_count = int(row.get("directory_count", 0) or 0)
-        is_valid  = bool(row.get("is_valid_lead", True))
-        rejection = str(row.get("rejection_reason",""))
+        turnover   = str(row.get("annual_turnover", ""))
+        certs      = row.get("certifications", [])
+        exports    = row.get("export_markets", [])
+        usp        = str(row.get("usp", ""))[:120]
+        key_cust   = row.get("key_customers", [])
+        twitter    = str(row.get("twitter_url",   ""))
+        facebook   = str(row.get("facebook_url",  ""))
+        instagram  = str(row.get("instagram_url", ""))
+        youtube    = str(row.get("youtube_url",   ""))
+        whatsapp   = str(row.get("whatsapp_url",  ""))
+        ctitle     = str(row.get("contact_title", ""))
+        cconfidence= str(row.get("contact_confidence",""))
+        is_dir     = bool(row.get("is_directory", False))
+        dir_count  = int(row.get("directory_count", 0) or 0)
+        is_valid   = bool(row.get("is_valid_lead", True))
+        rejection  = str(row.get("rejection_reason",""))
 
         links_html = ""
         if website and website not in ("nan", ""):
@@ -1535,7 +1620,7 @@ def _show_cards(leads: list):
         if youtube and youtube not in ("nan",""):
             links_html += f'<a class="card-link" href="{youtube}" target="_blank">▶️ YouTube</a>'
         if whatsapp and whatsapp not in ("nan",""):
-            links_html += f'<a class="card-link" href="{whatsapp}" target="_blank">💬 WhatsApp</a>' 
+            links_html += f'<a class="card-link" href="{whatsapp}" target="_blank">💬 WhatsApp</a>'
 
         extra_html = ""
         if turnover and turnover not in ("nan",""):
@@ -1545,9 +1630,10 @@ def _show_cards(leads: list):
         if isinstance(exports, list) and exports:
             extra_html += f'<span class="card-tag" style="background:#fdf4ff;color:#7e22ce">🌍 Exports: {", ".join(exports[:3])}</span>'
         if isinstance(key_cust, list) and key_cust:
-            extra_html += f'<span class="card-tag" style="background:#fff7ed;color:#9a3412">👥 {", ".join(key_cust[:2])}</span>' 
+            extra_html += f'<span class="card-tag" style="background:#fff7ed;color:#9a3412">👥 {", ".join(key_cust[:2])}</span>'
 
         tags_html = "".join(f'<span class="card-tag">{t}</span>' for t in tags)
+        contact_name = row.get("contact_person","")
 
         st.markdown(f"""
         <div class="result-card">
@@ -1566,8 +1652,8 @@ def _show_cards(leads: list):
           {'<div class="card-summary">'+summary+'</div>' if summary and summary != "nan" else ''}
           {'<div class="card-summary" style="color:#1e40af;font-size:0.78rem">📦 '+prod_str+'</div>' if prod_str else ''}
           {'<div class="card-summary" style="color:#6b7280;font-size:0.78rem;font-style:italic">💡 '+usp+'</div>' if usp and usp != "nan" else ''}
-          {'<div style="font-size:0.75rem;color:#374151;margin:4px 0"><strong>👤 Contact:</strong> '+company.get("contact_person","")+(" — "+ctitle if ctitle and ctitle!="nan" else "")+(" <span style=\'color:#10b981\'>("+cconfidence+" confidence)</span>" if cconfidence not in ("","nan","low") else "")+"</div>" if row.get("contact_person") else ''}
-          {'<div style="font-size:0.73rem;background:#fef9c3;color:#854d0e;padding:4px 10px;border-radius:6px;margin:4px 0;">📂 Directory — contains <strong>'+str(dir_count)+' companies</strong>. Use the Extract button below.</div>' if is_dir and dir_count > 0 else ''}
+          {'<div style="font-size:0.75rem;color:#374151;margin:4px 0"><strong>👤 Contact:</strong> '+str(contact_name)+(" — "+ctitle if ctitle and ctitle!="nan" else "")+(" <span style=\'color:#10b981\'>("+cconfidence+" confidence)</span>" if cconfidence not in ("","nan","low") else "")+"</div>" if contact_name else ""}
+          {'<div style="font-size:0.73rem;background:#fef9c3;color:#854d0e;padding:4px 10px;border-radius:6px;margin:4px 0;">📂 Directory — contains <strong>'+str(dir_count)+' companies</strong>.</div>' if is_dir and dir_count > 0 else ''}
           {'<div style="font-size:0.73rem;background:#fee2e2;color:#991b1b;padding:4px 10px;border-radius:6px;margin:4px 0;">⚠️ Grok flagged: '+rejection+'</div>' if not is_valid and rejection and rejection!="nan" else ''}
           {'<div class="card-tags" style="margin-top:6px">'+extra_html+'</div>' if extra_html else ''}
           {'<div class="card-links">'+links_html+'</div>' if links_html else ''}
@@ -1580,94 +1666,61 @@ def _show_table(leads: list, key_suffix: str = ""):
         st.info("No results. Try adjusting your filters.")
         return
 
-    df = pd.DataFrame(leads)
+    df  = pd.DataFrame(leads)
     vis = [c for c in st.session_state.visible_cols if c in df.columns]
     if not vis:
         vis = [c for c in DEFAULT_COLUMNS if c in df.columns]
 
     display_df = df[vis].copy()
-
-    # Format columns
     for col_key in ["bis_certified","gst_registered","iec_found","mca_active"]:
         if col_key in display_df.columns:
             display_df[col_key] = display_df[col_key].apply(_bool_icon)
     if "compliance_gaps" in display_df.columns:
         display_df["compliance_gaps"] = display_df["compliance_gaps"].apply(
-            lambda g: ", ".join(GAP_LABELS.get(x,x) for x in g)
-            if isinstance(g, list) else "")
+            lambda g: ", ".join(GAP_LABELS.get(x,x) for x in g) if isinstance(g, list) else "")
     if "products" in display_df.columns:
         display_df["products"] = display_df["products"].apply(
             lambda p: ", ".join(str(x) for x in p) if isinstance(p, list) else str(p or ""))
     if "final_score" in display_df.columns:
-        display_df["final_score"] = pd.to_numeric(
-            display_df["final_score"], errors="coerce").round(3)
+        display_df["final_score"] = pd.to_numeric(display_df["final_score"], errors="coerce").round(3)
     if "created_at" in display_df.columns:
-        display_df["created_at"] = pd.to_datetime(
-            display_df["created_at"], errors="coerce").dt.strftime("%d %b %Y")
+        display_df["created_at"] = pd.to_datetime(display_df["created_at"], errors="coerce").dt.strftime("%d %b %Y")
+    display_df.rename(columns={c: ALL_COLUMNS.get(c, c) for c in display_df.columns}, inplace=True)
 
-    # Rename to friendly names
-    display_df.rename(columns={c: ALL_COLUMNS.get(c, c) for c in display_df.columns},
-                      inplace=True)
+    st.dataframe(display_df, use_container_width=True, height=min(60 + len(display_df) * 36, 600))
 
-    st.dataframe(display_df, use_container_width=True,
-                 height=min(60 + len(display_df) * 36, 600))
-
-    # Download CSV
     csv_df = df[vis].copy()
     for col in ["compliance_gaps","products"]:
         if col in csv_df.columns:
-            csv_df[col] = csv_df[col].apply(
-                lambda v: ", ".join(v) if isinstance(v, list) else str(v or ""))
+            csv_df[col] = csv_df[col].apply(lambda v: ", ".join(v) if isinstance(v, list) else str(v or ""))
     csv = csv_df.to_csv(index=False).encode("utf-8")
-    st.download_button(
-        "⬇️ Download as CSV",
-        data=csv,
-        file_name=f"leads_{key_suffix}.csv",
-        mime="text/csv",
-        key=f"dl_{key_suffix}_{len(leads)}",
-    )
+    st.download_button("⬇️ Download as CSV", data=csv,
+                       file_name=f"leads_{key_suffix}.csv", mime="text/csv",
+                       key=f"dl_{key_suffix}_{len(leads)}")
 
 
-def _show_extracted_companies(companies: list, key_suffix: str = "",
-                              query: str = "") -> None:
-    """
-    Display extracted directory companies in a rich, detailed table + cards.
-    """
+def _show_extracted_companies(companies: list, key_suffix: str = "", query: str = "") -> None:
     if not companies:
         st.info("No companies extracted yet.")
         return
-
     st.markdown(f"**{len(companies)} companies extracted**")
-
-    # Build a clean dataframe
     rows = []
     for c in companies:
         rows.append({
-            "Company":   str(c.get("company","—")),
-            "City":      str(c.get("city","—")),
-            "Phone":     str(c.get("phone","—")),
-            "Email":     str(c.get("email","—")),
-            "Website":   str(c.get("website","—")),
-            "Products":  str(c.get("products","—"))[:80],
-            "About":     str(c.get("snippet","—"))[:100],
+            "Company": str(c.get("company","—")),
+            "City":    str(c.get("city","—")),
+            "Phone":   str(c.get("phone","—")),
+            "Email":   str(c.get("email","—")),
+            "Website": str(c.get("website","—")),
+            "Products":str(c.get("products","—"))[:80],
+            "About":   str(c.get("snippet","—"))[:100],
         })
     df = pd.DataFrame(rows)
-
-    # Show as styled table
-    st.dataframe(df, use_container_width=True,
-                 height=min(60 + len(df)*36, 500))
-
-    # Download button
+    st.dataframe(df, use_container_width=True, height=min(60 + len(df)*36, 500))
     csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button(
-        "⬇️ Download All as CSV",
-        data=csv,
-        file_name=f"directory_{key_suffix}.csv",
-        mime="text/csv",
-        key=f"dl_dir_{key_suffix}_{len(companies)}",
-    )
-
-    # Card view toggle
+    st.download_button("⬇️ Download All as CSV", data=csv,
+                       file_name=f"directory_{key_suffix}.csv", mime="text/csv",
+                       key=f"dl_dir_{key_suffix}_{len(companies)}")
     if st.checkbox("Show as cards", key=f"cards_dir_{key_suffix}"):
         for ci, c in enumerate(companies):
             name    = str(c.get("company","Unknown"))
@@ -1677,7 +1730,6 @@ def _show_extracted_companies(companies: list, key_suffix: str = "",
             website = str(c.get("website",""))
             prods   = str(c.get("products",""))[:120]
             snippet = str(c.get("snippet",""))[:150]
-
             links = ""
             if website and website not in ("nan","—",""):
                 links += f'<a class="card-link" href="{website}" target="_blank">🌐 Website</a>'
@@ -1685,7 +1737,6 @@ def _show_extracted_companies(companies: list, key_suffix: str = "",
                 links += f'<a class="card-link" href="mailto:{email}">📧 {email}</a>'
             if phone and phone not in ("nan","—",""):
                 links += f'<span class="card-link">📞 {phone}</span>'
-
             st.markdown(f"""
             <div class="result-card">
               <div class="card-company">{name}</div>
@@ -1696,7 +1747,351 @@ def _show_extracted_companies(companies: list, key_suffix: str = "",
             </div>
             """, unsafe_allow_html=True)
 
+# ===========================================================================
+# ADDED: Collapsed-cell card list with AI expand
+# ===========================================================================
 
+def _card_id(row: dict, idx: int) -> str:
+    """Stable ID for a result row."""
+    return str(row.get("_id") or f"{str(row.get('company','?'))[:20]}_{idx}")
+
+
+def _channel_emoji(ch: str) -> str:
+    return {"Manufacturer":"🏭","Importer":"📦","Trader":"🤝",
+            "Wholesaler":"🏪","Distributor":"🚚","Retailer":"🛍️"}.get(ch, "🏢")
+
+
+def _fetch_ai_detail(row: dict) -> dict:
+    """Call /research/deep to enrich a row with extra intelligence."""
+    company = row.get("company","")
+    website = row.get("active_website", row.get("website",""))
+    if not company:
+        return row
+    try:
+        r = _api_post("/research/deep",
+                      json={"company": company, "website": website,
+                            "country": row.get("country_detected","india"),
+                            "query": st.session_state.active_query},
+                      timeout=45)
+        if r.status_code == 200:
+            data = r.json()
+            enriched = dict(row)
+            enriched["_research_signals"] = data.get("signals", [])
+            enriched["_research_news"]    = data.get("sources", {}).get("news", [])[:3]
+            enriched["_research_social"]  = data.get("social", {})
+            enriched["_research_trade"]   = data.get("sources", {}).get("trade", [])[:2]
+            return enriched
+    except Exception:
+        pass
+    return row
+
+
+def _render_cell(row: dict, cid: str):
+    """One-line collapsed row."""
+    company   = str(row.get("company", "Unknown"))
+    city      = str(row.get("city", ""))
+    country   = str(row.get("country_detected", ""))
+    channel   = str(row.get("channel_type", ""))
+    imp       = str(row.get("importance", "low"))
+    score     = float(row.get("final_score", 0) or 0)
+    gaps      = row.get("compliance_gaps", [])
+    email     = str(row.get("email", ""))
+    is_dir    = bool(row.get("is_directory", False))
+    loc       = ", ".join(filter(None, [city, country]))
+    emoji     = "📂" if is_dir else _channel_emoji(channel)
+    has_email = "🟢 " if "@" in email else ""
+
+    st.markdown(f"""
+    <div class="lead-cell">
+      <div class="cell-icon">{emoji}</div>
+      <div class="cell-body">
+        <div class="cell-name">{company}</div>
+        <div class="cell-meta">{("📍 "+loc+"  ·  ") if loc else ""}{channel}{("  ·  "+has_email+"email") if has_email else ""}</div>
+      </div>
+      <div class="cell-right">
+        {_importance_pill(imp)}
+        {_gap_pill(gaps)}
+        {'<span class="status-pill" style="background:#fdf4ff;color:#7e22ce">📂 Dir</span>' if is_dir else ''}
+        <span class="score-badge">{score:.2f}</span>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def _render_expanded_card(row: dict, cid: str):
+    """Full expanded card with all fields + AI intelligence."""
+    company   = str(row.get("company", "—"))
+    city      = str(row.get("city", ""))
+    country   = str(row.get("country_detected", ""))
+    industry  = str(row.get("industry_detected", ""))
+    channel   = str(row.get("channel_type", ""))
+    score     = float(row.get("final_score", 0) or 0)
+    imp       = str(row.get("importance", "low"))
+    gaps      = row.get("compliance_gaps", [])
+    email     = str(row.get("email", ""))
+    phone     = str(row.get("phone", ""))
+    website   = str(row.get("active_website", row.get("website","")))
+    linkedin  = str(row.get("linkedin_url", ""))
+    summary   = str(row.get("ai_summary", ""))
+    products  = row.get("products", [])
+    size      = str(row.get("company_size", ""))
+    founded   = str(row.get("incorporation_date", ""))
+    turnover  = str(row.get("annual_turnover", ""))
+    certs     = row.get("certifications", [])
+    exports   = row.get("export_markets", [])
+    usp       = str(row.get("usp", ""))
+    key_cust  = row.get("key_customers", [])
+    contact   = str(row.get("contact_person", ""))
+    c_title   = str(row.get("contact_title", ""))
+    c_conf    = str(row.get("contact_confidence", ""))
+    c_email   = str(row.get("contact_email", ""))
+    is_dir    = bool(row.get("is_directory", False))
+    dir_cos   = row.get("directory_companies", [])
+    dir_count = int(row.get("directory_count", 0) or 0)
+    is_valid  = bool(row.get("is_valid_lead", True))
+    rejection = str(row.get("rejection_reason", ""))
+
+    # AI research extras
+    signals   = row.get("_research_signals", [])
+    news      = row.get("_research_news", [])
+    social_r  = row.get("_research_social", {})
+
+    loc = ", ".join(filter(None, [city, country]))
+
+    # Tags
+    tag_parts = [t for t in [industry, channel, size,
+                              f"Est. {founded}" if founded and founded!="nan" else ""]
+                 if t and t not in ("nan","")]
+    tags_html = "".join(f'<span class="card-tag">{t}</span>' for t in tag_parts)
+    if turnover and turnover not in ("nan",""):
+        tags_html += f'<span class="card-tag" style="background:#f0fdf4;color:#166534">💰 {turnover}</span>'
+
+    # Links
+    links_html = ""
+    if website and website not in ("nan",""):
+        links_html += f'<a class="card-link" href="{website}" target="_blank">🌐 Website</a>'
+    if email and "@" in email:
+        links_html += f'<a class="card-link" href="mailto:{email}">📧 {email}</a>'
+    if phone and phone not in ("nan",""):
+        links_html += f'<span class="card-link">📞 {phone}</span>'
+    if linkedin and linkedin not in ("nan",""):
+        links_html += f'<a class="card-link" href="{linkedin}" target="_blank">💼 LinkedIn</a>'
+    for field, icon, label in [
+        ("twitter_url","🐦","X"),("facebook_url","📘","Facebook"),
+        ("instagram_url","📸","Instagram"),("youtube_url","▶️","YouTube"),
+        ("whatsapp_url","💬","WhatsApp"),
+    ]:
+        v = str(row.get(field,""))
+        if v and v not in ("nan",""):
+            links_html += f'<a class="card-link" href="{v}" target="_blank">{icon} {label}</a>'
+    # From AI research social
+    for plat, icon in [("linkedin","💼"),("twitter","🐦"),("facebook","📘"),
+                       ("instagram","📸"),("youtube","▶️")]:
+        v = social_r.get(plat,"")
+        if v and v not in ("nan","") and not row.get(plat+"_url"):
+            links_html += f'<a class="card-link" href="{v}" target="_blank">{icon}</a>'
+
+    # Gap display
+    gap_html = ""
+    if isinstance(gaps, list) and gaps:
+        for g in [GAP_LABELS.get(x,x) for x in gaps]:
+            gap_html += f'<span class="status-pill pill-gap" style="margin-right:5px">⚠ {g}</span>'
+    else:
+        gap_html = '<span class="status-pill pill-clean">✓ No compliance issues</span>'
+
+    prod_str = ""
+    if isinstance(products, list) and products:
+        prod_str = "  ·  ".join(str(p) for p in products[:6])
+
+    st.markdown(f"""
+    <div class="expanded-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div>
+          <div class="expanded-title">{company}</div>
+          <div class="expanded-sub">
+            {'📍 '+loc+'  ·  ' if loc else ''}{channel+' '+_channel_emoji(channel) if channel else ''}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          {_importance_pill(imp)}
+          <span class="score-badge">{score:.2f}</span>
+          {'<span class="status-pill" style="background:#fdf4ff;color:#7e22ce">📂 Directory</span>' if is_dir else ''}
+        </div>
+      </div>
+      {'<div class="card-tags" style="margin:10px 0">'+tags_html+'</div>' if tags_html else ''}
+      {'<div class="expanded-section">About</div><div class="expanded-body">'+summary+'</div>' if summary and summary not in ("nan","") else ''}
+      {'<div class="expanded-section">Unique Selling Point</div><div class="expanded-body" style="font-style:italic">'+usp+'</div>' if usp and usp not in ("nan","") else ''}
+      {'<div class="expanded-section">Products & Services</div><div class="expanded-body">'+prod_str+'</div>' if prod_str else ''}
+    """, unsafe_allow_html=True)
+
+    if contact and contact not in ("nan",""):
+        st.markdown(f"""
+      <div class="expanded-section">Key Contact</div>
+      <div class="expanded-body">
+        👤 <strong>{contact}</strong>
+        {('  —  '+c_title) if c_title and c_title!='nan' else ''}
+        {(' <span style="color:#059669;font-size:0.72rem">('+c_conf+' confidence)</span>') if c_conf not in ('','nan','low') else ''}
+        {('<br>📧 '+c_email) if c_email and '@' in c_email and c_email not in (email,) else ''}
+      </div>
+        """, unsafe_allow_html=True)
+
+    # Compliance
+    st.markdown(f"""
+      <div class="expanded-section">Compliance Status</div>
+      <div style="margin-bottom:8px">{gap_html}</div>
+    """, unsafe_allow_html=True)
+
+    if isinstance(certs, list) and certs:
+        st.markdown(f'<div class="expanded-section">Certifications</div>'
+                    f'<div class="expanded-body">{" · ".join(certs[:8])}</div>',
+                    unsafe_allow_html=True)
+    if isinstance(exports, list) and exports:
+        st.markdown(f'<div class="expanded-section">Export Markets</div>'
+                    f'<div class="expanded-body">{" · ".join(exports[:6])}</div>',
+                    unsafe_allow_html=True)
+    if isinstance(key_cust, list) and key_cust:
+        st.markdown(f'<div class="expanded-section">Key Customers</div>'
+                    f'<div class="expanded-body">{" · ".join(key_cust[:4])}</div>',
+                    unsafe_allow_html=True)
+
+    # AI research signals
+    if signals:
+        sigs_html = "  ".join(signals)
+        st.markdown(f'<div class="expanded-section">Intelligence Signals</div>'
+                    f'<div class="expanded-body">{sigs_html}</div>',
+                    unsafe_allow_html=True)
+
+    # News
+    if news:
+        news_html = "<br>".join(
+            f'<a href="{n.get("url","#")}" target="_blank" class="card-link">📰 {n.get("title","")[:80]}</a>'
+            for n in news[:3])
+        st.markdown(f'<div class="expanded-section">Recent News</div>'
+                    f'<div class="expanded-body">{news_html}</div>',
+                    unsafe_allow_html=True)
+
+    if links_html:
+        st.markdown(f'<div class="card-links" style="margin-top:12px">{links_html}</div>',
+                    unsafe_allow_html=True)
+
+    if not is_valid and rejection and rejection not in ("nan",""):
+        st.markdown(f'<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;'
+                    f'padding:8px 12px;font-size:0.78rem;color:#b91c1c;margin-top:8px">'
+                    f'⚠️ AI note: {rejection}</div>',
+                    unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # ── Directory inline extraction ──
+    if is_dir:
+        st.markdown(f"""
+        <div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:10px;
+             padding:11px 15px;margin-top:8px;font-size:0.82rem;color:#7e22ce">
+          📂 <strong>Directory page</strong> — lists ~{dir_count} companies.
+        </div>
+        """, unsafe_allow_html=True)
+
+        if dir_cos:
+            # Already extracted — show inline
+            st.markdown(f"**{len(dir_cos)} companies extracted from this directory:**")
+            for c in dir_cos[:30]:
+                name    = str(c.get("company","—"))
+                c_city  = str(c.get("city",""))
+                c_ph    = str(c.get("phone",""))
+                c_em    = str(c.get("email",""))
+                c_web   = str(c.get("website",""))
+                c_prods = str(c.get("products",""))[:80]
+                c_lnk = ""
+                if c_web and c_web not in ("nan","—",""):
+                    c_lnk += f'  <a class="card-link" href="{c_web}" target="_blank">🌐</a>'
+                if c_em and "@" in c_em:
+                    c_lnk += f'  <a class="card-link" href="mailto:{c_em}">📧</a>'
+                st.markdown(f"""
+                <div class="dir-item">
+                  <strong>{name}</strong>
+                  {'  ·  📍'+c_city if c_city and c_city not in ('nan','—') else ''}
+                  {c_lnk}
+                  {'<br><span style="color:#64748b">'+c_prods+'</span>' if c_prods and c_prods not in ('nan','—') else ''}
+                </div>
+                """, unsafe_allow_html=True)
+            if len(dir_cos) > 30:
+                st.caption(f"…and {len(dir_cos)-30} more")
+            # CSV download
+            df_dir = pd.DataFrame([{
+                "Company":c.get("company",""), "City":c.get("city",""),
+                "Phone":c.get("phone",""), "Email":c.get("email",""),
+                "Website":c.get("website",""), "Products":c.get("products",""),
+            } for c in dir_cos])
+            csv_dir = df_dir.to_csv(index=False).encode("utf-8")
+            st.download_button("⬇️ Download directory companies", data=csv_dir,
+                               file_name=f"dir_{cid[:8]}.csv", mime="text/csv",
+                               key=f"dl_dir_exp_{cid}")
+        else:
+            if st.button("⚡ Extract all companies from this directory",
+                         key=f"dir_extract_{cid}", type="primary"):
+                with st.spinner("Extracting companies with AI… 30–60 seconds"):
+                    try:
+                        r = _api_post("/leads/extract-directory",
+                                      json={"website": website,
+                                            "content": row.get("content",""),
+                                            "query": st.session_state.active_query},
+                                      timeout=120)
+                        if r.status_code == 200:
+                            res = r.json()
+                            cos = res.get("companies", [])
+                            # Cache in card_details
+                            updated = dict(st.session_state.card_details.get(cid, row))
+                            updated["directory_companies"] = cos
+                            st.session_state.card_details[cid] = updated
+                            st.success(f"✅ Extracted {len(cos)} companies!")
+                            st.rerun()
+                        else:
+                            st.error(f"Extraction failed: {r.text}")
+                    except Exception as e:
+                        st.error(str(e))
+
+
+def _render_card_list(leads: list, key_suffix: str = ""):
+    """
+    Render leads as collapsed cells. Clicking 'Expand' opens the full card
+    and triggers an AI deep-dive via /research/deep.
+    """
+    if not leads:
+        st.markdown("""
+        <div class="empty-state">
+          <div class="icon">🔍</div>
+          <h3>No results for these filters</h3>
+          <p>Try removing some filters or searching with different keywords.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        return
+
+    for idx, row in enumerate(leads):
+        cid        = _card_id(row, idx)
+        expanded   = st.session_state.expanded_cards.get(cid, False)
+
+        if not expanded:
+            _render_cell(row, cid)
+            if st.button("View details →", key=f"exp_{key_suffix}_{cid}_{idx}",
+                         help="Click to see full details + AI intelligence"):
+                st.session_state.expanded_cards[cid] = True
+                # Fetch AI detail if not cached
+                if cid not in st.session_state.card_details:
+                    with st.spinner(f"Loading AI intel for {row.get('company','')[:25]}…"):
+                        enriched = _fetch_ai_detail(row)
+                        st.session_state.card_details[cid] = enriched
+                st.rerun()
+        else:
+            detail = st.session_state.card_details.get(cid, row)
+            _render_expanded_card(detail, cid)
+            if st.button("Collapse ↑", key=f"col_{key_suffix}_{cid}_{idx}"):
+                st.session_state.expanded_cards[cid] = False
+                st.rerun()
+
+
+# ===========================================================================
+# _show_results — now uses collapsed cells as default view
+# ===========================================================================
 def _show_results(leads: list, key_suffix: str = "tab"):
     if not leads:
         st.markdown("""
@@ -1708,13 +2103,13 @@ def _show_results(leads: list, key_suffix: str = "tab"):
         """, unsafe_allow_html=True)
         return
 
-    filtered = _apply_filters(leads)
+    filtered  = _apply_filters(leads)
     count_txt = f"{len(filtered)} of {len(leads)} companies" \
                 if len(filtered) != len(leads) else f"{len(leads)} companies"
 
     top_left, top_right = st.columns([3, 1])
     with top_left:
-        st.caption(f"Showing **{count_txt}**")
+        st.caption(f"Showing **{count_txt}** · Click **View details** to expand a company")
     with top_right:
         view = st.radio("View as", ["Cards", "Table"],
                         horizontal=True, key=f"view_{key_suffix}",
@@ -1722,21 +2117,19 @@ def _show_results(leads: list, key_suffix: str = "tab"):
         st.session_state.view_mode = view
 
     if view == "Cards":
-        _show_cards(filtered)
+        _render_card_list(filtered, key_suffix=key_suffix)   # ← collapsed cells
     else:
         _show_table(filtered, key_suffix=key_suffix)
 
+
 # ===========================================================================
-# RESULTS SECTION
+# RESULTS SECTION  (unchanged structure)
 # ===========================================================================
 if company_leads:
     st.markdown("---")
-
-    # Summary metrics
     _show_metrics(company_leads)
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Tabs
     tab_all, tab_high, tab_gaps, tab_mfg, tab_imp, tab_trade, tab_dir = st.tabs([
         f"🌐 All ({len(company_leads)})",
         "⭐ High Priority",
@@ -1752,8 +2145,7 @@ if company_leads:
 
     with tab_high:
         st.caption("Companies most likely to be a good fit based on your search")
-        high_leads = [x for x in company_leads
-                      if str(x.get("importance","")).lower() == "high"]
+        high_leads = [x for x in company_leads if str(x.get("importance","")).lower() == "high"]
         _show_results(high_leads, "high")
 
     with tab_gaps:
@@ -1764,8 +2156,7 @@ if company_leads:
         </div>
         """, unsafe_allow_html=True)
         gap_leads = [x for x in company_leads
-                     if isinstance(x.get("compliance_gaps"), list)
-                     and len(x["compliance_gaps"]) > 0]
+                     if isinstance(x.get("compliance_gaps"), list) and len(x["compliance_gaps"]) > 0]
         _show_results(gap_leads, "gaps")
 
     with tab_mfg:
@@ -1781,32 +2172,25 @@ if company_leads:
     with tab_trade:
         st.caption("Traders, distributors, wholesalers and retailers")
         trade_leads = [x for x in company_leads
-                       if x.get("channel_type") in
-                       ("Trader","Distributor","Wholesaler","Retailer")]
+                       if x.get("channel_type") in ("Trader","Distributor","Wholesaler","Retailer")]
         _show_results(trade_leads, "trade")
 
     with tab_dir:
         st.markdown("#### 📂 Directory Pages Detected")
         st.caption(
             "When AI detects a page that **lists multiple companies** (a directory), "
-            "it appears here. Extract all companies with one click — each gets a "
-            "full profile with contact details, website, products and more."
+            "it appears here. Expand any directory card to extract all companies inline."
         )
 
         dir_leads = [x for x in company_leads if x.get("is_directory")]
 
-        # Also allow manual URL entry
         with st.expander("📥 Manually scan any directory URL", expanded=False):
-            manual_url = st.text_input(
-                "Paste a directory URL",
-                placeholder="https://www.indiamart.com/proddetail/...",
-                key="manual_dir_url",
-            )
-            manual_query = st.text_input(
-                "What kind of companies are listed here?",
-                placeholder="electronics importers india",
-                key="manual_dir_query",
-            )
+            manual_url   = st.text_input("Paste a directory URL",
+                                          placeholder="https://www.indiamart.com/proddetail/...",
+                                          key="manual_dir_url")
+            manual_query = st.text_input("What kind of companies are listed here?",
+                                          placeholder="electronics importers india",
+                                          key="manual_dir_query")
             if st.button("🔍 Scan this URL", key="manual_dir_btn", type="primary"):
                 if manual_url:
                     with st.spinner("Scanning directory…"):
@@ -1825,11 +2209,11 @@ if company_leads:
                             st.error(f"Cannot reach server: {e}")
 
             if st.session_state.get("manual_dir_result"):
-                res   = st.session_state["manual_dir_result"]
-                found = res.get("extracted", 0)
-                saved = res.get("saved", 0)
+                res       = st.session_state["manual_dir_result"]
+                found     = res.get("extracted", 0)
+                saved_n   = res.get("saved", 0)
                 companies = res.get("companies", [])
-                st.success(f"✅ Found **{found}** companies, saved **{saved}** as leads")
+                st.success(f"✅ Found **{found}** companies, saved **{saved_n}** as leads")
                 if companies:
                     _show_extracted_companies(companies,
                         key_suffix="manual",
@@ -1848,101 +2232,25 @@ if company_leads:
             </div>
             """, unsafe_allow_html=True)
         else:
-            st.markdown(f"**{len(dir_leads)} director{'y' if len(dir_leads)==1 else 'ies'} found in this search**")
+            st.markdown(f"**{len(dir_leads)} director{'y' if len(dir_leads)==1 else 'ies'} found — expand to extract companies**")
+            _show_results(dir_leads, "dir")   # ← uses collapsed cells, expand reveals extract
 
-            for di, dl in enumerate(dir_leads):
-                dname   = dl.get("company", "Unknown Directory")
-                durl    = dl.get("active_website", dl.get("website",""))
-                dcount  = int(dl.get("directory_count", 0) or 0)
-                dsum    = dl.get("ai_summary","")[:200]
-                dir_cos = dl.get("directory_companies", [])
-
-                with st.expander(
-                    f"📂 {dname}  {'— ' + str(dcount) + ' companies inside' if dcount else ''}",
-                    expanded=(di == 0)
-                ):
-                    st.markdown(f"""
-                    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
-                      <a href="{durl}" target="_blank" style="color:#1e40af;font-size:0.82rem">
-                        🌐 {durl}
-                      </a>
-                      {"<span style='background:#fef9c3;color:#854d0e;padding:2px 10px;border-radius:6px;font-size:0.78rem'>📊 ~"+str(dcount)+" companies listed</span>" if dcount else ""}
-                    </div>
-                    {"<p style='font-size:0.83rem;color:#475569;margin:0 0 12px'>"+dsum+"</p>" if dsum and dsum!="nan" else ""}
-                    """, unsafe_allow_html=True)
-
-                    # If directory_companies already extracted, show them
-                    if dir_cos:
-                        st.success(f"✅ Already extracted {len(dir_cos)} companies from this directory")
-                        _show_extracted_companies(dir_cos,
-                            key_suffix=f"dir_{di}",
-                            query=st.session_state.active_query)
-                    else:
-                        ec1, ec2 = st.columns([2,3])
-                        with ec1:
-                            if st.button(
-                                f"⚡ Extract & Deep Scan All Companies",
-                                key=f"extract_btn_{di}",
-                                type="primary",
-                            ):
-                                with st.spinner(
-                                    f"Extracting companies from {dname}… "
-                                    f"This may take 30–60 seconds."
-                                ):
-                                    try:
-                                        r = _api_post("/leads/extract-directory",
-                                            json={
-                                                "website": durl,
-                                                "content": dl.get("content",""),
-                                                "query":   st.session_state.active_query,
-                                            }, timeout=120)
-                                        if r.status_code == 200:
-                                            res   = r.json()
-                                            found = res.get("extracted", 0)
-                                            saved = res.get("saved", 0)
-                                            cos   = res.get("companies", [])
-                                            st.success(
-                                                f"✅ Extracted **{found}** companies, "
-                                                f"saved **{saved}** as leads!"
-                                            )
-                                            if cos:
-                                                st.session_state[f"dir_cos_{di}"] = cos
-                                                st.rerun()
-                                        else:
-                                            st.error(f"Extraction failed: {r.text}")
-                                    except Exception as e:
-                                        st.error(f"Cannot reach server: {e}")
-                        with ec2:
-                            st.info(
-                                "Extraction uses AI to read every company on this page "
-                                "and save their name, contact, website, and products."
-                            )
-
-                    # Show cached result from this session
-                    if st.session_state.get(f"dir_cos_{di}"):
-                        _show_extracted_companies(
-                            st.session_state[f"dir_cos_{di}"],
-                            key_suffix=f"dir_cached_{di}",
-                            query=st.session_state.active_query,
-                        )
-
-    # LinkedIn profiles
+    # LinkedIn profiles  (unchanged)
     linkedin_leads = [x for x in raw_leads if x.get("source") == "linkedin_semantic"]
     if linkedin_leads:
         with st.expander(f"👤 LinkedIn Contacts Found ({len(linkedin_leads)})"):
-            ld = pd.DataFrame(linkedin_leads)
+            ld   = pd.DataFrame(linkedin_leads)
             cols = ["name","profile","snippet","searched_query","created_at"]
-            st.dataframe(ld[[c for c in cols if c in ld.columns]],
-                         use_container_width=True)
+            st.dataframe(ld[[c for c in cols if c in ld.columns]], use_container_width=True)
 
-    # Compliance checker
+    # Compliance checker  (unchanged)
     st.markdown("---")
     with st.expander("🔬 Check Licences & Registrations (BIS, GST, IEC, MCA)", expanded=False):
         st.markdown("""
         Automatically check which companies are missing important Indian business registrations.
         Companies with missing licences are highlighted — these are high-value prospects.
         """)
-        n = st.slider("How many companies to check?", 5, 100, 20, key="enrich_n")
+        n        = st.slider("How many companies to check?", 5, 100, 20, key="enrich_n")
         cf_enrich = "" if st.session_state.sf_country == "Any Country" \
                     else st.session_state.sf_country.lower()
         if st.button("▶️ Start Checking", key="enrich_btn", type="primary"):
@@ -1959,7 +2267,6 @@ if company_leads:
                     st.error(str(e))
 
 elif not st.session_state.active_job_id:
-    # No leads, not searching — show empty state
     st.markdown("""
     <div class="empty-state" style="margin-top:40px">
       <div class="icon">🌐</div>
