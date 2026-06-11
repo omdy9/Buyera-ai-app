@@ -969,10 +969,35 @@ _DEFAULTS = {
     "scan_all":           False,
     "quality_threshold":  0,
     "sf_city":            "Any",
+    "_reset_filters":     False,
 }
 for k, v in _DEFAULTS.items():
     if k not in st.session_state:
         st.session_state[k] = v if not isinstance(v, list) else v[:]
+
+# ---------------------------------------------------------------------------
+# Process pending filter reset BEFORE any widgets render
+# ---------------------------------------------------------------------------
+if st.session_state.get("_reset_filters"):
+    st.session_state["_reset_filters"] = False
+    for _k, _v in {
+        "sf_country":        "Any Country",
+        "sf_state":          "Any",
+        "sf_city":           "Any",
+        "sf_industry":       "Any",
+        "sf_channel":        "Any",
+        "sf_importance":     "Any",
+        "sf_min_score":      0.0,
+        "sf_has_email":      False,
+        "sf_has_phone":      False,
+        "sf_gaps_only":      False,
+        "quality_threshold": 0,
+        "scan_all":          False,
+        "sf_sort":           "Best Match First",
+        "sf_query":          "",
+    }.items():
+        st.session_state[_k] = _v
+    st.rerun()
 
 # ---------------------------------------------------------------------------
 # Top nav bar
@@ -1138,25 +1163,8 @@ if company_leads or st.session_state.active_job_id:
     # FILTER SECTION
     # -----------------------------------------------------------------------
     def _clear_filters_cb():
-        """Callback — resets all filter keys before widgets render."""
-        reset_map = {
-            "sf_country":        "Any Country",
-            "sf_state":          "Any",
-            "sf_city":           "Any",
-            "sf_industry":       "Any",
-            "sf_channel":        "Any",
-            "sf_importance":     "Any",
-            "sf_min_score":      0.0,
-            "sf_has_email":      False,
-            "sf_has_phone":      False,
-            "sf_gaps_only":      False,
-            "quality_threshold": 0,
-            "scan_all":          False,
-            "sf_sort":           "Best Match First",
-            "sf_query":          "",
-        }
-        for k, v in reset_map.items():
-            st.session_state[k] = v
+        """Set a flag — the actual reset happens at top of script before widgets render."""
+        st.session_state["_reset_filters"] = True
 
     with st.expander("🎛️  Filters & Options", expanded=False):
         st.markdown("**Narrow down your results**")
@@ -1216,10 +1224,7 @@ if company_leads or st.session_state.active_job_id:
             st.checkbox("Search all pages (slower)", key="scan_all")
         with cb:
             if st.button("❌ Clear All Filters", use_container_width=True):
-                for k in ["sf_country","sf_state","sf_industry","sf_channel",
-                          "sf_importance","sf_min_score","sf_has_email",
-                          "sf_has_phone","sf_gaps_only"]:
-                    st.session_state[k] = _DEFAULTS[k]
+                st.session_state["_reset_filters"] = True
                 st.rerun()
         with cc:
             if st.button("🗑️ Delete All Leads", use_container_width=True):
