@@ -660,6 +660,82 @@ div[data-testid="stButton"]:has(button[key="enrich_btn"]) button {
 }
 .dir-item strong { color: #1e293b; }
 
+
+/* =====================================================
+   MASTER-DETAIL LAYOUT
+   ===================================================== */
+
+/* Left panel — scrollable card list */
+.master-panel {
+    height: calc(100vh - 240px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: #e2e8f0 transparent;
+}
+.master-panel::-webkit-scrollbar { width: 4px; }
+.master-panel::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+
+/* Lead cell selected state */
+.lead-cell.selected {
+    border-color: #1e40af !important;
+    background: #eff6ff !important;
+    box-shadow: 0 0 0 2px rgba(30,64,175,.12) !important;
+}
+
+/* Right panel — sticky detail pane */
+.detail-panel {
+    position: sticky;
+    top: 70px;
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: #e2e8f0 transparent;
+}
+.detail-panel::-webkit-scrollbar { width: 4px; }
+.detail-panel::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+
+/* Detail card */
+.detail-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 22px 24px 24px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.05);
+}
+.detail-title  { font-size: 1.12rem; font-weight: 800; color: #1e293b; margin: 0 0 3px; }
+.detail-sub    { font-size: 0.78rem; color: #64748b; margin-bottom: 12px; }
+.detail-section {
+    font-size: 0.66rem; font-weight: 700; color: #94a3b8;
+    text-transform: uppercase; letter-spacing: .08em;
+    margin: 14px 0 5px; border-top: 1px solid #f1f5f9; padding-top: 10px;
+}
+.detail-body   { font-size: 0.82rem; color: #334155; line-height: 1.65; }
+.detail-links  { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.detail-link   { font-size: 0.78rem; color: #1e40af; text-decoration: none; font-weight: 600; }
+.detail-link:hover { text-decoration: underline; }
+
+/* Empty detail pane */
+.detail-empty {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: 300px;
+    color: #94a3b8; text-align: center; padding: 40px 20px;
+    background: white; border: 1.5px dashed #e2e8f0; border-radius: 14px;
+}
+.detail-empty .icon { font-size: 2.8rem; margin-bottom: 10px; }
+.detail-empty p { font-size: 0.82rem; margin: 0; line-height: 1.5; color: #94a3b8; }
+
+/* Dir item inside detail */
+.detail-dir-item {
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: 7px; padding: 8px 12px; margin-bottom: 4px;
+    font-size: 0.78rem; color: #334155;
+}
+.detail-dir-item strong { color: #1e293b; }
+
 /* Sidebar */
 [data-testid="stSidebar"] {
     background: #fafafa !important;
@@ -961,8 +1037,10 @@ _DEFAULTS = {
     "sf_city":            "Any",
     "_reset_filters":     False,
     # ── ADDED ──
-    "expanded_cards":     {},   # {card_id: bool}
+    "expanded_cards":     {},   # {card_id: bool}  (kept for table toggle compat)
     "card_details":       {},   # {card_id: enriched_dict}
+    "selected_card":      None, # cid of currently selected card in master-detail
+    "selected_tab":       "",   # which tab owns the selection
 }
 for k, v in _DEFAULTS.items():
     if k not in st.session_state:
@@ -1101,6 +1179,8 @@ with st.sidebar:
             st.session_state.notified_jobs  = []
             st.session_state.expanded_cards = {}
             st.session_state.card_details   = {}
+            st.session_state.selected_card  = None
+            st.session_state.selected_tab   = ""
             st.rerun()
         except Exception as e:
             st.error(str(e))
@@ -1224,6 +1304,8 @@ if search_clicked:
                 st.session_state.live_cursor    = 0
                 st.session_state.expanded_cards = {}
                 st.session_state.card_details   = {}
+                st.session_state.selected_card  = None
+                st.session_state.selected_tab   = ""
                 st.rerun()
             else:
                 st.error(f"Search error: {r.text}")
@@ -1330,6 +1412,8 @@ if company_leads or st.session_state.active_job_id:
                     st.session_state.notified_jobs  = []
                     st.session_state.expanded_cards = {}
                     st.session_state.card_details   = {}
+                    st.session_state.selected_card  = None
+                    st.session_state.selected_tab   = ""
                     st.rerun()
                 except Exception as e:
                     st.error(str(e))
@@ -2053,8 +2137,8 @@ def _render_expanded_card(row: dict, cid: str):
 
 def _render_card_list(leads: list, key_suffix: str = ""):
     """
-    Render leads as collapsed cells. Clicking 'Expand' opens the full card
-    and triggers an AI deep-dive via /research/deep.
+    Master panel — renders compact card cells in the left column.
+    Clicking a cell sets selected_card; the right panel renders the detail.
     """
     if not leads:
         st.markdown("""
@@ -2066,31 +2150,324 @@ def _render_card_list(leads: list, key_suffix: str = ""):
         """, unsafe_allow_html=True)
         return
 
-    for idx, row in enumerate(leads):
-        cid        = _card_id(row, idx)
-        expanded   = st.session_state.expanded_cards.get(cid, False)
+    selected = st.session_state.get("selected_card")
 
-        if not expanded:
-            _render_cell(row, cid)
-            if st.button("View details →", key=f"exp_{key_suffix}_{cid}_{idx}",
-                         help="Click to see full details + AI intelligence"):
-                st.session_state.expanded_cards[cid] = True
-                # Fetch AI detail if not cached
+    for idx, row in enumerate(leads):
+        cid       = _card_id(row, idx)
+        is_sel    = (selected == cid)
+
+        company   = str(row.get("company", "Unknown"))
+        city      = str(row.get("city", ""))
+        country   = str(row.get("country_detected", ""))
+        channel   = str(row.get("channel_type", ""))
+        imp       = str(row.get("importance", "low"))
+        score     = float(row.get("final_score", 0) or 0)
+        gaps      = row.get("compliance_gaps", [])
+        email     = str(row.get("email", ""))
+        is_dir    = bool(row.get("is_directory", False))
+        loc       = ", ".join(filter(None, [city, country]))
+        emoji     = "📂" if is_dir else _channel_emoji(channel)
+        has_email = "🟢" if "@" in email else ""
+        sel_class = " selected" if is_sel else ""
+
+        st.markdown(f"""
+        <div class="lead-cell{sel_class}">
+          <div class="cell-icon">{emoji}</div>
+          <div class="cell-body">
+            <div class="cell-name">{company}</div>
+            <div class="cell-meta">
+              {("📍 "+loc+"  ·  ") if loc else ""}{channel}
+              {("  "+has_email) if has_email else ""}
+            </div>
+          </div>
+          <div class="cell-right">
+            {_importance_pill(imp)}
+            {_gap_pill(gaps)}
+            <span class="score-badge">{score:.2f}</span>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        btn_label = "✓ Selected" if is_sel else "Select →"
+        if st.button(btn_label, key=f"sel_{key_suffix}_{cid}_{idx}",
+                     use_container_width=True,
+                     help="Click to view full company details on the right"):
+            if not is_sel:
+                # New selection — fetch AI detail if not cached
+                st.session_state.selected_card = cid
+                st.session_state.selected_tab  = key_suffix
                 if cid not in st.session_state.card_details:
-                    with st.spinner(f"Loading AI intel for {row.get('company','')[:25]}…"):
+                    with st.spinner(f"Loading details for {company[:25]}…"):
                         enriched = _fetch_ai_detail(row)
                         st.session_state.card_details[cid] = enriched
-                st.rerun()
+            else:
+                # Clicking again deselects
+                st.session_state.selected_card = None
+                st.session_state.selected_tab  = ""
+            st.rerun()
+
+
+def _render_detail_panel(cid: str):
+    """
+    Right panel — renders full company detail for the selected card.
+    Called from _show_results when a card is selected.
+    """
+    row = st.session_state.card_details.get(cid)
+    if not row:
+        st.markdown("""
+        <div class="detail-empty">
+          <div class="icon">👈</div>
+          <p>Select a company on the left<br>to see full details here.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        return
+
+    company   = str(row.get("company", "—"))
+    city      = str(row.get("city", ""))
+    country   = str(row.get("country_detected", ""))
+    industry  = str(row.get("industry_detected", ""))
+    channel   = str(row.get("channel_type", ""))
+    score     = float(row.get("final_score", 0) or 0)
+    imp       = str(row.get("importance", "low"))
+    gaps      = row.get("compliance_gaps", [])
+    email     = str(row.get("email", ""))
+    phone     = str(row.get("phone", ""))
+    website   = str(row.get("active_website", row.get("website", "")))
+    linkedin  = str(row.get("linkedin_url", ""))
+    summary   = str(row.get("ai_summary", ""))
+    products  = row.get("products", [])
+    size      = str(row.get("company_size", ""))
+    founded   = str(row.get("incorporation_date", ""))
+    turnover  = str(row.get("annual_turnover", ""))
+    certs     = row.get("certifications", [])
+    exports   = row.get("export_markets", [])
+    usp       = str(row.get("usp", ""))
+    key_cust  = row.get("key_customers", [])
+    contact   = str(row.get("contact_person", ""))
+    c_title   = str(row.get("contact_title", ""))
+    c_conf    = str(row.get("contact_confidence", ""))
+    c_email   = str(row.get("contact_email", ""))
+    is_dir    = bool(row.get("is_directory", False))
+    dir_cos   = row.get("directory_companies", [])
+    dir_count = int(row.get("directory_count", 0) or 0)
+    is_valid  = bool(row.get("is_valid_lead", True))
+    rejection = str(row.get("rejection_reason", ""))
+
+    # AI research extras
+    signals   = row.get("_research_signals", [])
+    news      = row.get("_research_news", [])
+    social_r  = row.get("_research_social", {})
+
+    loc = ", ".join(filter(None, [city, country]))
+
+    # Tags html
+    tag_parts = [t for t in [industry, channel, size,
+                              f"Est. {founded}" if founded and founded not in ("nan","") else ""]
+                 if t and t not in ("nan","")]
+    tags_html = "".join(f'<span class="card-tag">{t}</span>' for t in tag_parts)
+    if turnover and turnover not in ("nan",""):
+        tags_html += f'<span class="card-tag" style="background:#f0fdf4;color:#166534">💰 {turnover}</span>'
+
+    # Gap html
+    gap_html = ""
+    if isinstance(gaps, list) and gaps:
+        for g in [GAP_LABELS.get(x, x) for x in gaps]:
+            gap_html += f'<span class="status-pill pill-gap" style="margin-right:4px;margin-bottom:4px">⚠ {g}</span>'
+    else:
+        gap_html = '<span class="status-pill pill-clean">✓ No compliance issues</span>'
+
+    # Links
+    links_html = ""
+    if website and website not in ("nan",""):
+        links_html += f'<a class="detail-link" href="{website}" target="_blank">🌐 Website</a>'
+    if email and "@" in email:
+        links_html += f'<a class="detail-link" href="mailto:{email}">📧 {email}</a>'
+    if phone and phone not in ("nan",""):
+        links_html += f'<span class="detail-link">📞 {phone}</span>'
+    if linkedin and linkedin not in ("nan",""):
+        links_html += f'<a class="detail-link" href="{linkedin}" target="_blank">💼 LinkedIn</a>'
+    for field, icon, label in [
+        ("twitter_url","🐦","X"), ("facebook_url","📘","FB"),
+        ("instagram_url","📸","IG"), ("youtube_url","▶️","YT"),
+        ("whatsapp_url","💬","WA"),
+    ]:
+        v = str(row.get(field, ""))
+        if v and v not in ("nan",""):
+            links_html += f'<a class="detail-link" href="{v}" target="_blank">{icon} {label}</a>'
+    # From AI research social
+    for plat, icon in [("linkedin","💼"),("twitter","🐦"),("facebook","📘"),
+                       ("instagram","📸"),("youtube","▶️")]:
+        v = social_r.get(plat, "")
+        if v and v not in ("nan","") and not row.get(plat + "_url"):
+            links_html += f'<a class="detail-link" href="{v}" target="_blank">{icon}</a>'
+
+    prod_str = ""
+    if isinstance(products, list) and products:
+        prod_str = "  ·  ".join(str(p) for p in products[:8])
+
+    # ── Render detail card ──
+    st.markdown(f"""
+    <div class="detail-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;
+                  gap:10px;flex-wrap:wrap;margin-bottom:4px">
+        <div style="flex:1;min-width:0">
+          <div class="detail-title">{company}</div>
+          <div class="detail-sub">
+            {'📍 '+loc+'  ·  ' if loc else ''}{channel+' '+_channel_emoji(channel) if channel else ''}
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+          {_importance_pill(imp)}
+          <span class="score-badge">{score:.2f}</span>
+          {'<span class="status-pill" style="background:#fdf4ff;color:#7e22ce">📂 Dir</span>' if is_dir else ''}
+        </div>
+      </div>
+      {'<div class="card-tags" style="margin:8px 0 0">'+tags_html+'</div>' if tags_html else ''}
+    """, unsafe_allow_html=True)
+
+    if summary and summary not in ("nan",""):
+        st.markdown(f'<div class="detail-section">About</div>'
+                    f'<div class="detail-body">{summary}</div>', unsafe_allow_html=True)
+
+    if usp and usp not in ("nan",""):
+        st.markdown(f'<div class="detail-section">Unique Selling Point</div>'
+                    f'<div class="detail-body" style="font-style:italic">💡 {usp}</div>',
+                    unsafe_allow_html=True)
+
+    if prod_str:
+        st.markdown(f'<div class="detail-section">Products & Services</div>'
+                    f'<div class="detail-body">📦 {prod_str}</div>', unsafe_allow_html=True)
+
+    # Contact
+    if contact and contact not in ("nan",""):
+        conf_badge = (f' <span style="color:#059669;font-size:0.7rem">({c_conf} confidence)</span>'
+                      if c_conf not in ("","nan","low") else "")
+        st.markdown(
+            f'<div class="detail-section">Key Contact</div>'
+            f'<div class="detail-body">👤 <strong>{contact}</strong>'
+            f'{("  —  "+c_title) if c_title and c_title!="nan" else ""}'
+            f'{conf_badge}'
+            f'{("<br>📧 "+c_email) if c_email and "@" in c_email and c_email != email else ""}'
+            f'</div>',
+            unsafe_allow_html=True)
+
+    # Compliance
+    st.markdown(f'<div class="detail-section">Compliance</div>'
+                f'<div style="margin:4px 0 0">{gap_html}</div>', unsafe_allow_html=True)
+
+    if isinstance(certs, list) and certs:
+        st.markdown(f'<div class="detail-section">Certifications</div>'
+                    f'<div class="detail-body">{" · ".join(certs[:8])}</div>',
+                    unsafe_allow_html=True)
+
+    if isinstance(exports, list) and exports:
+        st.markdown(f'<div class="detail-section">Export Markets</div>'
+                    f'<div class="detail-body">{" · ".join(exports[:6])}</div>',
+                    unsafe_allow_html=True)
+
+    if isinstance(key_cust, list) and key_cust:
+        st.markdown(f'<div class="detail-section">Key Customers</div>'
+                    f'<div class="detail-body">{" · ".join(key_cust[:4])}</div>',
+                    unsafe_allow_html=True)
+
+    # AI intelligence signals
+    if signals:
+        st.markdown(f'<div class="detail-section">Intelligence Signals</div>'
+                    f'<div class="detail-body">{"  ".join(signals)}</div>',
+                    unsafe_allow_html=True)
+
+    # Recent news
+    if news:
+        news_html = "<br>".join(
+            f'<a href="{n.get("url","#")}" target="_blank" class="detail-link">'
+            f'📰 {n.get("title","")[:70]}</a>'
+            for n in news[:3])
+        st.markdown(f'<div class="detail-section">Recent News</div>'
+                    f'<div class="detail-body">{news_html}</div>', unsafe_allow_html=True)
+
+    # Flagged
+    if not is_valid and rejection and rejection not in ("nan",""):
+        st.markdown(
+            f'<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;'
+            f'padding:8px 12px;font-size:0.78rem;color:#b91c1c;margin-top:10px">'
+            f'⚠️ AI note: {rejection}</div>',
+            unsafe_allow_html=True)
+
+    # Links row
+    if links_html:
+        st.markdown(f'<div class="detail-links">{links_html}</div>',
+                    unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)   # close detail-card
+
+    # ── Directory extraction ──
+    if is_dir:
+        st.markdown(f"""
+        <div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:10px;
+             padding:10px 14px;margin-top:10px;font-size:0.82rem;color:#7e22ce">
+          📂 <strong>Directory</strong> — lists ~{dir_count} companies inside
+        </div>
+        """, unsafe_allow_html=True)
+
+        if dir_cos:
+            st.markdown(f"**{len(dir_cos)} companies extracted:**")
+            for c in dir_cos[:25]:
+                c_name = str(c.get("company","—"))
+                c_city = str(c.get("city",""))
+                c_ph   = str(c.get("phone",""))
+                c_em   = str(c.get("email",""))
+                c_web  = str(c.get("website",""))
+                c_prod = str(c.get("products",""))[:60]
+                lnk = ""
+                if c_web and c_web not in ("nan","—",""):
+                    lnk += f'  <a class="detail-link" href="{c_web}" target="_blank">🌐</a>'
+                if c_em and "@" in c_em:
+                    lnk += f'  <a class="detail-link" href="mailto:{c_em}">📧</a>'
+                st.markdown(f"""
+                <div class="detail-dir-item">
+                  <strong>{c_name}</strong>
+                  {'  ·  📍'+c_city if c_city and c_city not in ('nan','—') else ''}
+                  {lnk}
+                  {'<br><span style="color:#64748b">'+c_prod+'</span>' if c_prod and c_prod not in ('nan','—') else ''}
+                </div>
+                """, unsafe_allow_html=True)
+            if len(dir_cos) > 25:
+                st.caption(f"…and {len(dir_cos)-25} more")
+            df_dir = pd.DataFrame([{
+                "Company":c.get("company",""), "City":c.get("city",""),
+                "Phone":c.get("phone",""), "Email":c.get("email",""),
+                "Website":c.get("website",""), "Products":c.get("products",""),
+            } for c in dir_cos])
+            st.download_button("⬇️ Download all as CSV",
+                               data=df_dir.to_csv(index=False).encode("utf-8"),
+                               file_name=f"dir_{cid[:8]}.csv", mime="text/csv",
+                               key=f"dl_det_dir_{cid}")
         else:
-            detail = st.session_state.card_details.get(cid, row)
-            _render_expanded_card(detail, cid)
-            if st.button("Collapse ↑", key=f"col_{key_suffix}_{cid}_{idx}"):
-                st.session_state.expanded_cards[cid] = False
-                st.rerun()
+            if st.button("⚡ Extract all companies", key=f"det_extract_{cid}",
+                         type="primary", use_container_width=True):
+                with st.spinner("Extracting with AI… 30–60 seconds"):
+                    try:
+                        r = _api_post("/leads/extract-directory",
+                                      json={"website": website,
+                                            "content": row.get("content",""),
+                                            "query": st.session_state.active_query},
+                                      timeout=120)
+                        if r.status_code == 200:
+                            res = r.json()
+                            cos = res.get("companies", [])
+                            updated = dict(st.session_state.card_details.get(cid, row))
+                            updated["directory_companies"] = cos
+                            st.session_state.card_details[cid] = updated
+                            st.success(f"✅ Extracted {len(cos)} companies!")
+                            st.rerun()
+                        else:
+                            st.error(f"Extraction failed: {r.text}")
+                    except Exception as e:
+                        st.error(str(e))
 
 
 # ===========================================================================
-# _show_results — now uses collapsed cells as default view
+# _show_results — master-detail split layout (left list, right detail)
 # ===========================================================================
 def _show_results(leads: list, key_suffix: str = "tab"):
     if not leads:
@@ -2104,22 +2481,65 @@ def _show_results(leads: list, key_suffix: str = "tab"):
         return
 
     filtered  = _apply_filters(leads)
-    count_txt = f"{len(filtered)} of {len(leads)} companies" \
-                if len(filtered) != len(leads) else f"{len(leads)} companies"
+    count_txt = (f"{len(filtered)} of {len(leads)} companies"
+                 if len(filtered) != len(leads) else f"{len(leads)} companies")
 
-    top_left, top_right = st.columns([3, 1])
-    with top_left:
-        st.caption(f"Showing **{count_txt}** · Click **View details** to expand a company")
-    with top_right:
-        view = st.radio("View as", ["Cards", "Table"],
-                        horizontal=True, key=f"view_{key_suffix}",
+    # Header row — count + table toggle
+    hc1, hc2 = st.columns([4, 1])
+    with hc1:
+        st.caption(f"Showing **{count_txt}** · Select a company to see details")
+    with hc2:
+        view = st.radio("View", ["Cards", "Table"], horizontal=True,
+                        key=f"view_{key_suffix}",
                         index=0 if st.session_state.view_mode == "Cards" else 1)
         st.session_state.view_mode = view
 
-    if view == "Cards":
-        _render_card_list(filtered, key_suffix=key_suffix)   # ← collapsed cells
-    else:
+    if view == "Table":
         _show_table(filtered, key_suffix=key_suffix)
+        return
+
+    # ── Master-detail split ──
+    selected_cid = st.session_state.get("selected_card")
+
+    # Determine if detail panel should show (card selected AND it belongs to this tab)
+    show_detail = (
+        selected_cid is not None
+        and selected_cid in st.session_state.card_details
+        and st.session_state.get("selected_tab", "") == key_suffix
+    )
+
+    if show_detail:
+        col_left, col_right = st.columns([2, 3], gap="medium")
+    else:
+        col_left  = st.container()
+        col_right = None
+
+    # Left — card list
+    with col_left:
+        st.markdown('<div class="master-panel">', unsafe_allow_html=True)
+        _render_card_list(filtered, key_suffix=key_suffix)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # Right — detail panel
+    if show_detail and col_right is not None:
+        with col_right:
+            st.markdown('<div class="detail-panel">', unsafe_allow_html=True)
+            _render_detail_panel(selected_cid)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    # CSV export
+    if filtered:
+        df_exp = pd.DataFrame(filtered)
+        for c in ["compliance_gaps","products","certifications","export_markets","key_customers"]:
+            if c in df_exp.columns:
+                df_exp[c] = df_exp[c].apply(
+                    lambda v: ", ".join(v) if isinstance(v, list) else str(v or ""))
+        st.download_button(
+            "⬇️ Export as CSV",
+            data=df_exp.to_csv(index=False).encode("utf-8"),
+            file_name=f"leads_{key_suffix}.csv", mime="text/csv",
+            key=f"dl_exp_{key_suffix}_{len(filtered)}"
+        )
 
 
 # ===========================================================================
