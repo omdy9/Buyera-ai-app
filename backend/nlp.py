@@ -1,7 +1,6 @@
 """
-nlp.py  — keyword-only scoring (no sentence-transformers)
-Removed model loading entirely to keep Render free tier under memory/download limits.
-All semantic functions fall back to fast TF-IDF / keyword matching.
+nlp.py  — keyword-only scoring (no sentence-transformers, no heavy deps)
+Removed model loading entirely to keep Render free tier under memory limits.
 """
 import re
 import math
@@ -15,20 +14,14 @@ SERVICES = [
     "app development", "accounting", "legal services", "logistics",
 ]
 
-COUNTRIES = [
-    "india", "usa", "uk", "uae", "germany", "canada", "australia"
-]
+COUNTRIES = ["india", "usa", "uk", "uae", "germany", "canada", "australia"]
 
 STOPWORDS = {
     "a", "an", "and", "or", "the", "in", "on", "at", "to", "for",
     "from", "of", "by", "with", "near", "me", "company", "companies",
-    "service", "services"
+    "service", "services",
 }
 
-
-# ---------------------------------------------------------------------------
-# Functions
-# ---------------------------------------------------------------------------
 
 def extract_fields(text):
     text_low = text.lower()
@@ -45,7 +38,7 @@ def extract_fields(text):
     return service, country, urgency, budget
 
 
-def _query_tokens(query):
+def _query_tokens(query: str) -> list:
     return [
         t for t in re.findall(r"[a-zA-Z0-9]+", query.lower())
         if len(t) > 2 and t not in STOPWORDS
@@ -53,7 +46,6 @@ def _query_tokens(query):
 
 
 def _tfidf_cosine(query: str, text: str) -> float:
-    """TF-IDF cosine similarity — zero dependencies."""
     def _tok(t):
         return [w for w in re.findall(r"[a-zA-Z0-9]+", t.lower())
                 if len(w) > 2 and w not in STOPWORDS]
@@ -94,7 +86,7 @@ def semantic_similarity(query, text):
     return _tfidf_cosine(query, text)
 
 
-def keyword_match_ratio(query, text):
+def keyword_match_ratio(query: str, text: str) -> float:
     tokens = _query_tokens(query)
     if not tokens:
         return 0.0
@@ -103,20 +95,16 @@ def keyword_match_ratio(query, text):
     return round(hits / len(tokens), 3)
 
 
-def ai_summary_for_query(query, content, max_sentences=3):
+def ai_summary_for_query(query: str, content: str, max_sentences: int = 3) -> str:
     if not content:
         return ""
-
     cleaned   = " ".join(content.split())
     sentences = [
         s.strip() for s in re.split(r"(?<=[.!?])\s+", cleaned)
         if 20 <= len(s.strip()) <= 280
     ]
-
     if not sentences:
         return cleaned[:500]
-
-    # Score sentences by keyword overlap with query
     tokens = _query_tokens(query)
     scored = []
     for s in sentences[:40]:
