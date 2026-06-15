@@ -543,9 +543,6 @@ def test_llm():
         return {"working": working, "failed": failed, "providers": providers_status}
     except Exception as e:
         return {"error": str(e)}
-'''
-
-
 # ---------------------------------------------------------------------------
 # Admin fix endpoint — visit once to clean up old indexes/docs, then remove
 # ---------------------------------------------------------------------------
