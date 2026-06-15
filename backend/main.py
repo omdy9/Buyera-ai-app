@@ -472,6 +472,80 @@ def llm_provider_info():
     return get_active_provider()
 
 
+@app.get("/admin/health")
+def health_check():
+    """Full system health — diagnose SERP + LLM + MongoDB + Node crawler."""
+    import os
+    results = {}
+ 
+    serp_key = os.getenv("SERP_API_KEY", "")
+    results["serp_api"] = {
+        "key_set":     bool(serp_key.strip()),
+        "key_preview": (serp_key[:6] + "...") if serp_key else "NOT SET",
+    }
+ 
+    try:
+        try:
+            from .llm import get_all_providers, _PROVIDER_DEAD
+        except ImportError:
+            from llm import get_all_providers, _PROVIDER_DEAD
+        results["llm_providers"]           = get_all_providers()
+        results["llm_dead_this_session"]   = dict(_PROVIDER_DEAD)
+    except Exception as e:
+        results["llm_providers"] = {"error": str(e)}
+ 
+    try:
+        from database import db
+        db.command("ping")
+        results["mongodb"] = {"status": "connected"}
+    except Exception as e:
+        results["mongodb"] = {"status": "error", "detail": str(e)}
+ 
+    try:
+        import requests as _r
+        r = _r.get(
+            f"{os.getenv('NODE_CRAWLER_URL','http://127.0.0.1:5050')}/health",
+            timeout=3,
+        )
+        results["node_crawler"] = {"status": "ok" if r.status_code == 200 else f"HTTP {r.status_code}"}
+    except Exception as e:
+        results["node_crawler"] = {"status": "unreachable", "detail": str(e)}
+ 
+    return results
+ 
+ 
+@app.get("/admin/test-llm")
+def test_llm():
+    """Quick test — which LLM providers are actually responding right now."""
+    try:
+        try:
+            from .llm import _call_llm, _get_provider, get_all_providers
+        except ImportError:
+            from llm import _call_llm, _get_provider, get_all_providers
+ 
+        providers_status = get_all_providers()
+        working, failed = [], []
+ 
+        for name in ["deepseek", "grok", "openrouter"]:
+            pname, cfg = _get_provider(name)
+            if not pname:
+                failed.append({"provider": name, "reason": "key missing or marked dead"})
+                continue
+            try:
+                result = _call_llm(
+                    [{"role": "user", "content": 'Reply with just: {"ok": true}'}],
+                    provider_name=name, max_tokens=20, temperature=0.0, retries=1,
+                )
+                working.append({"provider": name, "response": result[:60]})
+            except Exception as e:
+                failed.append({"provider": name, "error": str(e)})
+ 
+        return {"working": working, "failed": failed, "providers": providers_status}
+    except Exception as e:
+        return {"error": str(e)}
+'''
+
+
 # ---------------------------------------------------------------------------
 # Admin fix endpoint — visit once to clean up old indexes/docs, then remove
 # ---------------------------------------------------------------------------
