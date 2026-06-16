@@ -251,7 +251,7 @@ ul[role="listbox"],
 
 /* ── Tabs ── */
 [data-testid="stTabs"] [role="tablist"] {
-    background: transparent !important;
+    background: white !important;
     border: none !important;
     gap: 0 !important;
     border-bottom: 1px solid #e2e8f0;
@@ -264,13 +264,13 @@ ul[role="listbox"],
     padding: 8px 16px !important;
     color: #64748b !important;
     border-bottom: 2px solid transparent !important;
-    background: transparent !important;
+    background: white !important;
     margin-bottom: -1px;
 }
 [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
     color: #2563eb !important;
     border-bottom-color: #2563eb !important;
-    background: transparent !important;
+    background: white !important;
     font-weight: 600 !important;
 }
 
@@ -504,7 +504,7 @@ label, p, span, div,
 /* ── Logout secondary button special case ── */
 div[data-testid="stButton"]:has(button[key="logout_btn"]) button,
 div[data-testid="stButton"]:has(button[key="sb_logout_btn"]) button {
-    background: transparent !important;
+    background: white !important;
     border: 1px solid #e2e8f0 !important;
     color: #64748b !important;
     font-size: 0.75rem !important;
