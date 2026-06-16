@@ -27,29 +27,41 @@ POLL_SECONDS = 2
 st.set_page_config(
     page_title="Buyera — Find Business Leads",
     layout="wide",
-    initial_sidebar_state="expanded",   # ← ADDED: sidebar open by default
+    initial_sidebar_state="expanded",
 )
 
 # ---------------------------------------------------------------------------
-# CSS  (original + new collapsed-cell styles added at the bottom)
+# CSS
 # ---------------------------------------------------------------------------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-* { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+*, *::before, *::after { font-family: 'Inter', sans-serif; box-sizing: border-box; }
 
-.stApp { background: #f8fafc; }
-
-/* Hide default streamlit chrome */
+/* ── Page ── */
+.stApp { background: #f9fafb; }
 #MainMenu, footer, header { visibility: hidden; }
 [data-testid="stToolbar"] { display: none; }
 
-/* Top nav bar */
+/* ── All text black ── */
+.stApp, .stApp * { color: #111827; }
+label, p, span, div,
+[data-testid="stWidgetLabel"] p,
+[data-testid="stMarkdownContainer"] p,
+.stMarkdown p, .stMarkdown strong,
+.stCheckbox label span, .stRadio label span,
+[data-baseweb="checkbox"] span, [data-baseweb="radio"] span,
+[data-testid="stWidgetLabel"],
+.stSlider [data-testid="stWidgetLabel"] p,
+.stRadio > div label p,
+.stCheckbox > label > div p { color: #111827 !important; }
+
+/* ── Topbar ── */
 .topbar {
-    background: white;
-    border-bottom: 1px solid #e2e8f0;
-    padding: 14px 32px;
+    background: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 12px 28px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -58,704 +70,428 @@ st.markdown("""
     top: 0;
     z-index: 100;
 }
-.topbar-logo {
-    font-size: 1.3rem;
-    font-weight: 700;
-    color: #1e40af;
-}
-.topbar-logo span { color: #10b981; }
+.topbar-logo { font-size: 1.15rem; font-weight: 700; color: #111827; letter-spacing: -0.02em; }
+.topbar-logo span { color: #6366f1; }
 .topbar-user {
-    font-size: 0.82rem;
-    color: #64748b;
-    background: #f1f5f9;
-    padding: 6px 14px;
-    border-radius: 20px;
+    font-size: 0.78rem; color: #6b7280;
+    background: #f3f4f6; padding: 5px 12px; border-radius: 20px;
 }
 
-/* Hero search area */
+/* ── Hero ── */
 .search-hero {
-    background: linear-gradient(135deg, #1e3a5f 0%, #1e40af 50%, #0f766e 100%);
-    border-radius: 16px;
-    padding: 40px 32px;
-    margin: 20px 0 16px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 32px 28px 24px;
+    margin: 16px 0 14px;
     text-align: center;
 }
 .search-hero h1 {
-    color: white;
-    font-size: 1.8rem;
-    font-weight: 700;
-    margin: 0 0 6px;
+    color: #111827; font-size: 1.55rem; font-weight: 700;
+    margin: 0 0 5px; letter-spacing: -0.02em;
 }
-.search-hero p {
-    color: rgba(255,255,255,0.75);
-    font-size: 0.95rem;
-    margin: 0 0 24px;
-}
+.search-hero p { color: #6b7280; font-size: 0.88rem; margin: 0; }
 
-/* Example chips */
-.chip-row {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    justify-content: center;
-    margin-top: 12px;
-}
+/* ── Chips ── */
 .chip {
-    background: rgba(255,255,255,0.15);
-    color: rgba(255,255,255,0.9);
-    border: 1px solid rgba(255,255,255,0.25);
-    padding: 5px 14px;
-    border-radius: 20px;
-    font-size: 0.78rem;
-    cursor: pointer;
-}
-
-/* Filter bar */
-.filter-bar {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 16px 20px;
-    margin-bottom: 16px;
-}
-.filter-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: 6px;
-}
-
-/* Metric cards */
-[data-testid="metric-container"] {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 16px !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-}
-[data-testid="stMetricValue"] {
-    font-size: 1.9rem !important;
-    font-weight: 700 !important;
-    color: #1e293b !important;
-}
-[data-testid="stMetricLabel"] {
-    font-size: 0.72rem !important;
-    color: #94a3b8 !important;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-/* Buttons */
-.stButton > button {
-    border-radius: 8px !important;
-    font-weight: 600 !important;
-    font-size: 0.85rem !important;
-    padding: 8px 18px !important;
-    transition: all 0.15s !important;
-}
-div[data-testid="stHorizontalBlock"] .stButton > button {
-    width: 100%;
-}
-
-/* Primary search button */
-.search-btn .stButton > button {
-    background: #1e40af !important;
-    color: white !important;
-    border: none !important;
-    font-size: 1rem !important;
-    padding: 12px 32px !important;
-    border-radius: 10px !important;
-}
-.search-btn .stButton > button:hover {
-    background: #1d4ed8 !important;
-    box-shadow: 0 4px 12px rgba(30,64,175,0.35) !important;
-}
-
-/* Tabs */
-[data-testid="stTabs"] [role="tablist"] {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 4px;
-    gap: 2px;
-}
-[data-testid="stTabs"] [role="tab"] {
-    border-radius: 7px !important;
-    color: #64748b !important;
-    font-size: 0.82rem !important;
-    font-weight: 500 !important;
-    padding: 7px 14px !important;
-}
-[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
-    background: #1e40af !important;
-    color: white !important;
-}
-
-/* Status pill */
-.status-pill {
     display: inline-block;
-    padding: 3px 12px;
-    border-radius: 20px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.03em;
+    background: #f3f4f6; color: #374151;
+    border: 1px solid #e5e7eb;
+    padding: 4px 12px; border-radius: 20px;
+    font-size: 0.75rem; cursor: pointer;
+    transition: border-color 0.12s;
 }
-.pill-high    { background: #dcfce7; color: #166534; }
-.pill-medium  { background: #fef9c3; color: #854d0e; }
-.pill-low     { background: #f1f5f9; color: #64748b; }
-.pill-gap     { background: #fee2e2; color: #991b1b; }
-.pill-clean   { background: #dcfce7; color: #166534; }
-.pill-running { background: #dbeafe; color: #1e40af; }
+.chip:hover { border-color: #9ca3af; }
 
-/* Result card */
-.result-card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 18px 20px;
-    margin-bottom: 10px;
-    transition: box-shadow 0.15s, border-color 0.15s;
-}
-.result-card:hover {
-    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-    border-color: #93c5fd;
-}
-.card-company { font-size: 1rem; font-weight: 700; color: #1e293b; }
-.card-meta    { font-size: 0.78rem; color: #64748b; margin: 4px 0 8px; }
-.card-summary { font-size: 0.82rem; color: #475569; line-height: 1.5; margin: 6px 0; }
-.card-tags    { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-.card-tag {
-    background: #f1f5f9;
-    color: #475569;
-    padding: 3px 10px;
-    border-radius: 6px;
-    font-size: 0.72rem;
-    font-weight: 500;
-}
-.card-links   { margin-top: 10px; display: flex; gap: 14px; }
-.card-link    { font-size: 0.78rem; color: #1e40af; text-decoration: none; }
-
-/* Score badge */
-.score-badge {
-    background: #eff6ff;
-    color: #1e40af;
-    border: 1px solid #bfdbfe;
-    padding: 3px 10px;
-    border-radius: 6px;
-    font-size: 0.78rem;
-    font-weight: 700;
-}
-
-/* Column picker */
-.col-picker-wrap {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 16px 20px;
-    margin-bottom: 16px;
-}
-
-/* Input override */
-.stTextInput input {
-    border-radius: 10px !important;
-    border: 1.5px solid #e2e8f0 !important;
-    font-size: 1rem !important;
-    padding: 12px 16px !important;
-    background: white !important;
+/* ── Inputs ── */
+.stTextInput input, input[type="text"], input[type="password"], textarea {
+    background: #fff !important;
+    border: 1.5px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    color: #111827 !important;
+    font-size: 0.9rem !important;
+    padding: 10px 14px !important;
+    -webkit-text-fill-color: #111827 !important;
+    transition: border-color 0.15s !important;
+    box-shadow: none !important;
 }
 .stTextInput input:focus {
-    border-color: #1e40af !important;
-    box-shadow: 0 0 0 3px rgba(30,64,175,0.1) !important;
-}
-
-/* Selectbox */
-.stSelectbox > div > div {
-    border-radius: 8px !important;
-    border: 1.5px solid #e2e8f0 !important;
-    background: white !important;
-    font-size: 0.85rem !important;
-}
-
-/* Checkbox */
-.stCheckbox { font-size: 0.85rem !important; color: #475569 !important; }
-
-/* Expander */
-[data-testid="stExpander"] {
-    background: white;
-    border: 1px solid #e2e8f0 !important;
-    border-radius: 12px !important;
-}
-
-/* Dataframe */
-[data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; }
-
-/* Alert */
-.stAlert { border-radius: 10px !important; }
-
-/* Divider */
-hr { border-color: #e2e8f0 !important; margin: 12px 0 !important; }
-
-/* Progress */
-.stProgress > div > div { background: #1e40af !important; border-radius: 4px; }
-
-/* Info box */
-.info-box {
-    background: #eff6ff;
-    border: 1px solid #bfdbfe;
-    border-radius: 10px;
-    padding: 12px 16px;
-    font-size: 0.83rem;
-    color: #1e40af;
-    margin-bottom: 12px;
-}
-
-/* Empty state */
-.empty-state {
-    text-align: center;
-    padding: 64px 20px;
-    color: #94a3b8;
-}
-.empty-state .icon { font-size: 3.5rem; margin-bottom: 12px; }
-.empty-state h3 { color: #64748b; font-size: 1.1rem; margin: 0 0 6px; }
-.empty-state p  { font-size: 0.85rem; margin: 0; }
-
-/* All input/widget labels black */
-label, .stSelectbox label, .stTextInput label,
-.stCheckbox label, .stSlider label, .stRadio label,
-.stMultiSelect label, .stTextArea label,
-[data-testid="stWidgetLabel"] p,
-[data-testid="stWidgetLabel"],
-.stSlider [data-testid="stWidgetLabel"],
-.stCheckbox [data-testid="stWidgetLabel"],
-.stRadio [data-testid="stWidgetLabel"],
-.element-container label {
-    color: #111827 !important;
-    font-weight: 600 !important;
-}
-
-[data-testid="stExpander"] summary p,
-[data-testid="stExpander"] summary {
-    color: #111827 !important;
-    font-weight: 600 !important;
-}
-
-[data-testid="stTabs"] [role="tab"] {
-    color: #111827 !important;
-}
-[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
-    color: white !important;
-}
-
-.stRadio div[role="radiogroup"] label {
-    color: #111827 !important;
-    font-weight: 500 !important;
-}
-
-.stSlider > label {
-    color: #111827 !important;
-    font-weight: 600 !important;
-}
-
-.stMarkdown p, .stMarkdown strong {
-    color: #111827 !important;
-}
-
-.stApp, .stApp * { color: #111827; }
-
-.stTextInput input,
-.stTextInput input::placeholder,
-input[type="text"],
-input[type="password"],
-textarea {
-    color: #111827 !important;
-    background: white !important;
-    -webkit-text-fill-color: #111827 !important;
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.08) !important;
 }
 .stTextInput input::placeholder {
     color: #9ca3af !important;
     -webkit-text-fill-color: #9ca3af !important;
 }
 
-.stSelectbox div[data-baseweb="select"] span,
-.stSelectbox div[data-baseweb="select"] div,
-.stSelectbox [data-testid="stMarkdownContainer"] p,
+/* ── Selectbox ── */
+.stSelectbox > div > div,
 div[data-baseweb="select"] > div {
+    border-radius: 8px !important;
+    border: 1.5px solid #e5e7eb !important;
+    background: #fff !important;
     color: #111827 !important;
-    background-color: white !important;
+    font-size: 0.85rem !important;
 }
-
-ul[role="listbox"] li,
-ul[role="listbox"] li span,
-div[role="option"],
-div[role="option"] span {
-    color: #111827 !important;
-    background: white !important;
-}
-ul[role="listbox"] li:hover,
-div[role="option"]:hover {
-    background: #eff6ff !important;
-    color: #1e40af !important;
-}
-
-label, p, span, div,
-[data-testid="stWidgetLabel"],
-[data-testid="stWidgetLabel"] p,
-.stMarkdown p,
-.stMarkdown span,
-.stCheckbox label span,
-.stRadio label span,
-[data-baseweb="checkbox"] span,
-[data-baseweb="radio"] span {
-    color: #111827 !important;
-}
-
-[data-testid="stMetricValue"] { color: #111827 !important; }
-[data-testid="stMetricLabel"] { color: #6b7280 !important; }
-.stCaption, [data-testid="stCaptionContainer"] p { color: #6b7280 !important; }
-
-[data-testid="stTabs"] [role="tab"] { color: #374151 !important; font-weight: 600 !important; }
-[data-testid="stTabs"] [role="tab"][aria-selected="true"] { color: white !important; background: #1e40af !important; }
-
-[data-testid="stExpander"] details summary p,
-[data-testid="stExpander"] summary p {
-    color: #111827 !important;
-    font-weight: 600 !important;
-}
-
-.stSlider label,
-.stSlider [data-testid="stWidgetLabel"] p,
-.stSlider div[data-testid="stTickBarMin"],
-.stSlider div[data-testid="stTickBarMax"],
-[data-testid="stTickBar"] span {
-    color: #111827 !important;
-}
-
-.stRadio > div label p,
-.stRadio > div [data-testid="stMarkdownContainer"] p {
-    color: #111827 !important;
-    font-weight: 500 !important;
-}
-
-.stCheckbox > label > div p,
-.stCheckbox [data-testid="stMarkdownContainer"] p {
-    color: #111827 !important;
-}
-
-[data-testid="stAlert"] p,
-[data-testid="stAlert"] div { color: #111827 !important; }
-
-.stDownloadButton button {
-    color: #111827 !important;
-    background: white !important;
-    border: 1.5px solid #e2e8f0 !important;
-}
-.stDownloadButton button:hover {
-    background: #f8fafc !important;
-    border-color: #1e40af !important;
-}
-
-::selection { background: #bfdbfe; color: #1e40af; }
-[data-testid="stSidebar"] * { color: #111827 !important; }
-
-[data-testid="stDataFrame"] table,
-[data-testid="stDataFrame"] th,
-[data-testid="stDataFrame"] td { color: #111827 !important; }
-
-[data-testid="stToast"] p { color: #111827 !important; }
-
-.stButton > button { color: white !important; }
-.stButton > button:hover { color: white !important; }
-
-div[data-baseweb="select"],
-div[data-baseweb="select"] > div,
-div[data-baseweb="select"] > div > div,
-.stSelectbox div[data-baseweb="select"],
-[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
-    background-color: white !important;
-    color: #111827 !important;
-    border-color: #e2e8f0 !important;
-}
-
 div[data-baseweb="select"] span,
-div[data-baseweb="select"] [class*="placeholder"],
 div[data-baseweb="select"] [class*="singleValue"],
+div[data-baseweb="select"] [class*="placeholder"],
 div[data-baseweb="select"] input {
     color: #111827 !important;
     -webkit-text-fill-color: #111827 !important;
     background: transparent !important;
 }
 
-ul[role="listbox"],
-div[role="listbox"],
-[data-baseweb="popover"],
-[data-baseweb="menu"],
-[data-baseweb="popover"] > div,
-[data-baseweb="menu"] > div,
+/* ── Dropdown popup ── */
+ul[role="listbox"], div[role="listbox"],
+[data-baseweb="popover"], [data-baseweb="menu"],
+[data-baseweb="popover"] > div, [data-baseweb="menu"] > div,
 [data-baseweb="menu"] ul {
-    background-color: white !important;
-    border: 1px solid #e2e8f0 !important;
+    background: #fff !important;
+    border: 1px solid #e5e7eb !important;
     border-radius: 10px !important;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08) !important;
+}
+ul[role="listbox"] li, [data-baseweb="menu"] li,
+[role="option"], div[role="option"], li[role="option"] {
+    background: #fff !important; color: #111827 !important;
+}
+ul[role="listbox"] li *, [role="option"] *, div[role="option"] * {
+    color: #111827 !important; background: transparent !important;
+}
+ul[role="listbox"] li:hover, [role="option"]:hover,
+div[role="option"]:hover, li[role="option"]:hover,
+[aria-selected="true"][role="option"] {
+    background: #eef2ff !important; color: #4f46e5 !important;
+}
+ul[role="listbox"] li:hover *, [role="option"]:hover * { color: #4f46e5 !important; }
+
+/* ── Buttons — default ghost ── */
+.stButton > button {
+    background: #fff !important;
+    color: #111827 !important;
+    border: 1.5px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    font-size: 0.84rem !important;
+    padding: 8px 16px !important;
+    transition: border-color 0.12s, color 0.12s !important;
+    box-shadow: none !important;
+}
+.stButton > button:hover {
+    border-color: #6366f1 !important;
+    color: #4f46e5 !important;
+    box-shadow: none !important;
 }
 
-ul[role="listbox"] li,
-[data-baseweb="menu"] li,
-[role="option"],
-div[role="option"],
-li[role="option"] {
-    background-color: white !important;
-    color: #111827 !important;
+/* ── Primary search button ── */
+.search-btn .stButton > button {
+    background: #111827 !important;
+    color: #fff !important;
+    border: none !important;
+    font-size: 0.92rem !important;
+    padding: 11px 24px !important;
+    border-radius: 8px !important;
 }
-ul[role="listbox"] li *,
-[role="option"] *,
-div[role="option"] *,
-li[role="option"] * {
-    color: #111827 !important;
-    background-color: transparent !important;
-}
-
-ul[role="listbox"] li:hover,
-[role="option"]:hover,
-div[role="option"]:hover,
-li[role="option"]:hover,
-[aria-selected="true"][role="option"],
-[data-baseweb="menu"] li:hover {
-    background-color: #eff6ff !important;
-    color: #1e40af !important;
-}
-ul[role="listbox"] li:hover *,
-[role="option"]:hover *,
-div[role="option"]:hover * { color: #1e40af !important; }
-
-.stButton > button[kind="secondary"],
-.stButton > button:not([kind="primary"]) {
-    background: white !important;
-    color: #111827 !important;
-    border: 1.5px solid #d1d5db !important;
-}
-.stButton > button[kind="secondary"]:hover,
-.stButton > button:not([kind="primary"]):hover {
-    background: #f8fafc !important;
-    color: #111827 !important;
-    border-color: #1e40af !important;
+.search-btn .stButton > button:hover {
+    background: #1f2937 !important;
+    color: #fff !important;
+    border: none !important;
 }
 
-.stButton > button[kind="primary"],
-div[data-testid="stButton"] > button[kind="primary"] {
-    background: #1e40af !important;
-    color: white !important;
+/* ── Type="primary" buttons ── */
+.stButton > button[kind="primary"] {
+    background: #111827 !important;
+    color: #fff !important;
     border: none !important;
 }
 .stButton > button[kind="primary"]:hover {
-    background: #1d4ed8 !important;
-    color: white !important;
+    background: #1f2937 !important;
+    color: #fff !important;
 }
 
-.search-btn .stButton > button {
-    background: #1e40af !important;
-    color: white !important;
-    border: none !important;
+/* ── Tabs ── */
+[data-testid="stTabs"] [role="tablist"] {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid #e5e7eb;
+    border-radius: 0;
+    padding: 0;
+    gap: 0;
 }
-
-button[data-testid="baseButton-secondary"],
-.stButton > button[data-testid="baseButton-secondary"] {
-    background: white !important;
-    color: #111827 !important;
-    border: 1.5px solid #d1d5db !important;
-}
-
-div[data-testid="stButton"]:has(button#logout_btn) button,
-#logout_btn {
-    background: white !important;
-    color: #374151 !important;
-    border: 1.5px solid #d1d5db !important;
-}
-
-.stDownloadButton > button {
-    background: white !important;
-    color: #111827 !important;
-    border: 1.5px solid #d1d5db !important;
+[data-testid="stTabs"] [role="tab"] {
+    border-radius: 0 !important;
+    color: #6b7280 !important;
+    font-size: 0.82rem !important;
     font-weight: 500 !important;
+    padding: 10px 16px !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    background: transparent !important;
 }
-.stDownloadButton > button:hover {
-    background: #f8fafc !important;
-    border-color: #1e40af !important;
-    color: #1e40af !important;
-}
-
-button[key="enrich_btn"],
-div[data-testid="stButton"]:has(button[key="enrich_btn"]) button {
-    background: #1e40af !important;
-    color: white !important;
-}
-
 [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
-    color: white !important;
-    background: #1e40af !important;
+    color: #111827 !important;
+    background: transparent !important;
+    border-bottom: 2px solid #111827 !important;
 }
 
-[data-baseweb="tag"] { background: #eff6ff !important; color: #1e40af !important; }
-[data-baseweb="tag"] span { color: #1e40af !important; }
-
-/* =====================================================
-   ADDED: Collapsed lead-cell styles
-   ===================================================== */
-.lead-cell {
-    background: white;
-    border: 1px solid #e2e8f0;
+/* ── Metrics ── */
+[data-testid="metric-container"] {
+    background: #fff;
+    border: 1px solid #e5e7eb;
     border-radius: 10px;
-    padding: 11px 16px;
+    padding: 14px 16px !important;
+    box-shadow: none;
+}
+[data-testid="stMetricValue"] { font-size: 1.7rem !important; font-weight: 700 !important; color: #111827 !important; }
+[data-testid="stMetricLabel"] { font-size: 0.69rem !important; color: #9ca3af !important; text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* ── Expander ── */
+[data-testid="stExpander"] {
+    background: #fff;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+}
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] details summary p { color: #111827 !important; font-weight: 600 !important; }
+
+/* ── Checkbox / Radio / Slider ── */
+.stCheckbox { font-size: 0.84rem !important; }
+.stSlider label, .stSlider [data-testid="stWidgetLabel"] p,
+.stSlider div[data-testid="stTickBarMin"],
+.stSlider div[data-testid="stTickBarMax"],
+[data-testid="stTickBar"] span { color: #111827 !important; }
+
+/* ── Status pills ── */
+.status-pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+.pill-high   { background: #dcfce7; color: #166534; }
+.pill-medium { background: #fef9c3; color: #854d0e; }
+.pill-low    { background: #f3f4f6; color: #6b7280; }
+.pill-gap    { background: #fee2e2; color: #991b1b; }
+.pill-clean  { background: #dcfce7; color: #166534; }
+
+/* ── Lead cell (collapsed) ── */
+.lead-cell {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px 16px;
     margin-bottom: 5px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    transition: box-shadow 0.12s, border-color 0.12s;
+    transition: border-color 0.12s, box-shadow 0.12s;
 }
 .lead-cell:hover {
-    box-shadow: 0 2px 10px rgba(0,0,0,0.07);
-    border-color: #93c5fd;
+    border-color: #c7d2fe;
+    box-shadow: 0 2px 8px rgba(99,102,241,0.06);
 }
 .cell-icon {
-    width: 36px; height: 36px;
-    border-radius: 8px;
-    background: #eff6ff;
+    width: 34px; height: 34px; border-radius: 8px;
+    background: #f3f4f6;
     display: flex; align-items: center; justify-content: center;
-    font-size: 1.1rem; flex-shrink: 0;
+    font-size: 1rem; flex-shrink: 0;
 }
 .cell-body { flex: 1; min-width: 0; }
 .cell-name {
-    font-size: 0.9rem; font-weight: 700; color: #1e293b;
+    font-size: 0.88rem; font-weight: 600; color: #111827;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .cell-meta {
-    font-size: 0.73rem; color: #64748b; margin-top: 1px;
+    font-size: 0.72rem; color: #6b7280; margin-top: 2px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.cell-right {
-    display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+.cell-right { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+
+/* ── Score badge ── */
+.score-badge {
+    background: #f3f4f6; color: #374151;
+    border: 1px solid #e5e7eb;
+    padding: 2px 9px; border-radius: 20px;
+    font-size: 0.72rem; font-weight: 700;
 }
 
-/* Expanded card */
+/* ── Expanded card ── */
 .expanded-card {
-    background: white;
-    border: 1.5px solid #93c5fd;
+    background: #fff;
+    border: 1px solid #e5e7eb;
     border-radius: 12px;
     padding: 20px 22px 16px;
     margin-bottom: 8px;
-    box-shadow: 0 4px 18px rgba(30,64,175,0.08);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
 }
-.expanded-title { font-size: 1.1rem; font-weight: 800; color: #1e293b; margin: 0 0 3px; }
-.expanded-sub   { font-size: 0.78rem; color: #64748b; margin-bottom: 12px; }
+.expanded-title { font-size: 1.05rem; font-weight: 700; color: #111827; margin: 0 0 3px; }
+.expanded-sub   { font-size: 0.76rem; color: #6b7280; margin-bottom: 12px; }
 .expanded-section {
-    font-size: 0.68rem; font-weight: 700; color: #94a3b8;
-    text-transform: uppercase; letter-spacing: .07em; margin: 12px 0 4px;
+    font-size: 0.66rem; font-weight: 700; color: #9ca3af;
+    text-transform: uppercase; letter-spacing: .08em;
+    margin: 14px 0 4px; border-top: 1px solid #f3f4f6; padding-top: 10px;
 }
-.expanded-body { font-size: 0.82rem; color: #334155; line-height: 1.6; }
+.expanded-body { font-size: 0.82rem; color: #374151; line-height: 1.6; }
 .dir-item {
-    background: #f8fafc; border: 1px solid #e2e8f0;
+    background: #f9fafb; border: 1px solid #e5e7eb;
     border-radius: 7px; padding: 8px 12px; margin-bottom: 4px;
-    font-size: 0.79rem; color: #334155;
+    font-size: 0.78rem; color: #374151;
 }
-.dir-item strong { color: #1e293b; }
+.dir-item strong { color: #111827; }
 
+/* ── Result card (full cards view) ── */
+.result-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 8px;
+    transition: border-color 0.12s, box-shadow 0.12s;
+}
+.result-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-color: #c7d2fe; }
+.card-company { font-size: 0.95rem; font-weight: 600; color: #111827; }
+.card-meta    { font-size: 0.76rem; color: #6b7280; margin: 3px 0 7px; }
+.card-summary { font-size: 0.81rem; color: #4b5563; line-height: 1.5; margin: 5px 0; }
+.card-tags    { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 7px; }
+.card-tag     { background: #f3f4f6; color: #4b5563; padding: 2px 9px; border-radius: 6px; font-size: 0.7rem; font-weight: 500; }
+.card-links   { margin-top: 10px; display: flex; gap: 12px; flex-wrap: wrap; }
+.card-link    { font-size: 0.77rem; color: #4f46e5; text-decoration: none; }
+.card-link:hover { text-decoration: underline; }
 
-/* =====================================================
-   MASTER-DETAIL LAYOUT
-   ===================================================== */
-
-/* Left panel — scrollable card list */
+/* ── Master-detail panels ── */
 .master-panel {
     height: calc(100vh - 240px);
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow-y: auto; overflow-x: hidden;
     padding-right: 4px;
-    scrollbar-width: thin;
-    scrollbar-color: #e2e8f0 transparent;
+    scrollbar-width: thin; scrollbar-color: #e5e7eb transparent;
 }
 .master-panel::-webkit-scrollbar { width: 4px; }
-.master-panel::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+.master-panel::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 4px; }
 
-/* Lead cell selected state */
-.lead-cell.selected {
-    border-color: #1e40af !important;
-    background: #eff6ff !important;
-    box-shadow: 0 0 0 2px rgba(30,64,175,.12) !important;
-}
-
-/* Right panel — sticky detail pane */
 .detail-panel {
-    position: sticky;
-    top: 70px;
+    position: sticky; top: 70px;
     max-height: calc(100vh - 180px);
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-width: thin;
-    scrollbar-color: #e2e8f0 transparent;
+    overflow-y: auto; overflow-x: hidden;
+    scrollbar-width: thin; scrollbar-color: #e5e7eb transparent;
 }
 .detail-panel::-webkit-scrollbar { width: 4px; }
-.detail-panel::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+.detail-panel::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 4px; }
 
-/* Detail card */
+/* ── Detail card ── */
 .detail-card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    padding: 22px 24px 24px;
-    box-shadow: 0 2px 12px rgba(0,0,0,.05);
+    background: #fff; border: 1px solid #e5e7eb;
+    border-radius: 12px; padding: 20px 22px 22px;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.04);
 }
-.detail-title  { font-size: 1.12rem; font-weight: 800; color: #1e293b; margin: 0 0 3px; }
-.detail-sub    { font-size: 0.78rem; color: #64748b; margin-bottom: 12px; }
+.detail-title  { font-size: 1.08rem; font-weight: 700; color: #111827; margin: 0 0 3px; }
+.detail-sub    { font-size: 0.76rem; color: #6b7280; margin-bottom: 12px; }
 .detail-section {
-    font-size: 0.66rem; font-weight: 700; color: #94a3b8;
+    font-size: 0.65rem; font-weight: 700; color: #9ca3af;
     text-transform: uppercase; letter-spacing: .08em;
-    margin: 14px 0 5px; border-top: 1px solid #f1f5f9; padding-top: 10px;
+    margin: 14px 0 4px; border-top: 1px solid #f3f4f6; padding-top: 10px;
 }
-.detail-body   { font-size: 0.82rem; color: #334155; line-height: 1.65; }
-.detail-links  { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
-.detail-link   { font-size: 0.78rem; color: #1e40af; text-decoration: none; font-weight: 600; }
+.detail-body  { font-size: 0.81rem; color: #374151; line-height: 1.65; }
+.detail-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.detail-link  { font-size: 0.77rem; color: #4f46e5; text-decoration: none; font-weight: 600; }
 .detail-link:hover { text-decoration: underline; }
-
-/* Empty detail pane */
 .detail-empty {
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    min-height: 300px;
-    color: #94a3b8; text-align: center; padding: 40px 20px;
-    background: white; border: 1.5px dashed #e2e8f0; border-radius: 14px;
+    min-height: 280px; color: #9ca3af; text-align: center;
+    padding: 40px 20px; background: #fff;
+    border: 1.5px dashed #e5e7eb; border-radius: 12px;
 }
-.detail-empty .icon { font-size: 2.8rem; margin-bottom: 10px; }
-.detail-empty p { font-size: 0.82rem; margin: 0; line-height: 1.5; color: #94a3b8; }
-
-/* Dir item inside detail */
+.detail-empty p { font-size: 0.81rem; margin: 0; line-height: 1.5; }
 .detail-dir-item {
-    background: #f8fafc; border: 1px solid #e2e8f0;
-    border-radius: 7px; padding: 8px 12px; margin-bottom: 4px;
-    font-size: 0.78rem; color: #334155;
+    background: #f9fafb; border: 1px solid #e5e7eb;
+    border-radius: 7px; padding: 7px 11px; margin-bottom: 4px;
+    font-size: 0.77rem; color: #374151;
 }
-.detail-dir-item strong { color: #1e293b; }
+.detail-dir-item strong { color: #111827; }
 
-/* Sidebar */
+/* ── Info box ── */
+.info-box {
+    background: #f0f9ff; border: 1px solid #bae6fd;
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 0.82rem; color: #0369a1; margin-bottom: 10px;
+}
+
+/* ── Empty state ── */
+.empty-state { text-align: center; padding: 56px 20px; }
+.empty-state .icon { font-size: 2.8rem; margin-bottom: 10px; }
+.empty-state h3 { color: #374151; font-size: 1rem; margin: 0 0 5px; font-weight: 600; }
+.empty-state p  { font-size: 0.83rem; color: #6b7280; margin: 0; }
+
+/* ── Column picker ── */
+.col-picker-wrap {
+    background: #fff; border: 1px solid #e5e7eb;
+    border-radius: 10px; padding: 16px 18px; margin-bottom: 14px;
+}
+
+/* ── Sidebar ── */
 [data-testid="stSidebar"] {
-    background: #fafafa !important;
-    border-right: 1px solid #e2e8f0 !important;
+    background: #fff !important;
+    border-right: 1px solid #e5e7eb !important;
 }
 [data-testid="stSidebar"] .stSelectbox > div > div,
 [data-testid="stSidebar"] .stTextInput input {
-    background: white !important;
-    border: 1px solid #e2e8f0 !important;
+    background: #f9fafb !important;
+    border: 1px solid #e5e7eb !important;
     font-size: 0.82rem !important;
 }
 [data-testid="stSidebar"] label,
 [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
-    font-size: 0.73rem !important;
+    font-size: 0.72rem !important;
     font-weight: 600 !important;
-    color: #475569 !important;
+    color: #374151 !important;
     text-transform: uppercase;
     letter-spacing: .05em;
 }
+[data-testid="stSidebar"] * { color: #111827 !important; }
 
+/* ── Download button ── */
+.stDownloadButton > button {
+    background: #fff !important; color: #111827 !important;
+    border: 1.5px solid #e5e7eb !important; border-radius: 8px !important;
+    font-weight: 500 !important; font-size: 0.81rem !important;
+}
+.stDownloadButton > button:hover {
+    border-color: #6366f1 !important; color: #4f46e5 !important;
+}
+
+/* ── Alert / toast ── */
+.stAlert { border-radius: 8px !important; }
+[data-testid="stAlert"] p, [data-testid="stAlert"] div { color: #111827 !important; }
+[data-testid="stToast"] p { color: #111827 !important; }
+
+/* ── Dataframe ── */
+[data-testid="stDataFrame"] { border-radius: 8px; overflow: hidden; }
+[data-testid="stDataFrame"] table,
+[data-testid="stDataFrame"] th,
+[data-testid="stDataFrame"] td { color: #111827 !important; }
+
+/* ── Divider ── */
+hr { border-color: #e5e7eb !important; margin: 10px 0 !important; }
+
+/* ── Progress ── */
+.stProgress > div > div { background: #6366f1 !important; border-radius: 3px; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
+
+/* ── Multiselect tags ── */
+[data-baseweb="tag"] { background: #eef2ff !important; color: #4f46e5 !important; }
+[data-baseweb="tag"] span { color: #4f46e5 !important; }
+
+/* ── Caption ── */
+.stCaption, [data-testid="stCaptionContainer"] p { color: #6b7280 !important; font-size: 0.76rem !important; }
+
+/* ── Selection ── */
+::selection { background: #e0e7ff; color: #3730a3; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -779,17 +515,17 @@ def _api_delete(path, **kwargs):
                            timeout=kwargs.pop("timeout", 15), **kwargs)
 
 # ---------------------------------------------------------------------------
-# Login page  (unchanged)
+# Login page
 # ---------------------------------------------------------------------------
 def _show_login_page():
     st.markdown("""
-    <div style="max-width:440px;margin:80px auto 0;padding:0 16px">
-      <div style="text-align:center;margin-bottom:32px">
-        <div style="font-size:2.4rem;font-weight:800;color:#1e40af;margin-bottom:6px">
-          🌐 Buyera
+    <div style="max-width:420px;margin:72px auto 0;padding:0 16px">
+      <div style="text-align:center;margin-bottom:28px">
+        <div style="font-size:1.6rem;font-weight:700;color:#111827;letter-spacing:-0.02em;margin-bottom:4px">
+          Buyera
         </div>
-        <p style="color:#64748b;font-size:0.95rem;margin:0">
-          Find business leads from around the world — fast.
+        <p style="color:#6b7280;font-size:0.88rem;margin:0">
+          Find business leads from around the world
         </p>
       </div>
     </div>
@@ -877,7 +613,7 @@ if not st.session_state.auth_token:
     st.stop()
 
 # ---------------------------------------------------------------------------
-# Constants  (unchanged)
+# Constants
 # ---------------------------------------------------------------------------
 GAP_LABELS = {
     "no_bis":        "No BIS Licence",
@@ -1004,14 +740,14 @@ ALL_CITIES = {
 }
 
 QUALITY_LABELS = {
-    0: ("🌐 Show Everything",   "Includes directories, social pages, low-relevance results"),
-    1: ("📋 Basic Filter",      "Removes obvious junk, keeps directories and borderline leads"),
-    2: ("⭐ Good Leads Only",   "Medium+ relevance — solid business prospects"),
-    3: ("🏆 Best Matches Only", "High relevance only — verified, enriched, Grok-approved"),
+    0: ("Show Everything",   "Includes directories, social pages, low-relevance results"),
+    1: ("Basic Filter",      "Removes obvious junk, keeps directories and borderline leads"),
+    2: ("Good Leads Only",   "Medium+ relevance — solid business prospects"),
+    3: ("Best Matches Only", "High relevance only — verified, enriched, AI-approved"),
 }
 
 # ---------------------------------------------------------------------------
-# Session state  (ADDED: expanded_cards, card_details)
+# Session state
 # ---------------------------------------------------------------------------
 _DEFAULTS = {
     "active_job_id":      "",
@@ -1036,11 +772,10 @@ _DEFAULTS = {
     "quality_threshold":  0,
     "sf_city":            "Any",
     "_reset_filters":     False,
-    # ── ADDED ──
-    "expanded_cards":     {},   # {card_id: bool}  (kept for table toggle compat)
-    "card_details":       {},   # {card_id: enriched_dict}
-    "selected_card":      None, # cid of currently selected card in master-detail
-    "selected_tab":       "",   # which tab owns the selection
+    "expanded_cards":     {},
+    "card_details":       {},
+    "selected_card":      None,
+    "selected_tab":       "",
 }
 for k, v in _DEFAULTS.items():
     if k not in st.session_state:
@@ -1071,35 +806,31 @@ if st.session_state.get("_reset_filters"):
     st.rerun()
 
 # ===========================================================================
-# ADDED: SIDEBAR — quick filters always visible
+# SIDEBAR
 # ===========================================================================
 with st.sidebar:
     st.markdown(f"""
-    <div style="padding:6px 0 14px">
-      <div style="font-size:1.15rem;font-weight:800;color:#1e40af;letter-spacing:-.02em">
-        🌐 Buyera
-      </div>
-      <div style="font-size:0.72rem;color:#64748b;margin-top:2px">
-        Signed in as <strong>{st.session_state.auth_username}</strong>
+    <div style="padding:4px 0 14px;border-bottom:1px solid #f3f4f6">
+      <div style="font-size:1.1rem;font-weight:700;color:#111827;letter-spacing:-.02em">Buyera</div>
+      <div style="font-size:0.72rem;color:#9ca3af;margin-top:2px">
+        Signed in as <strong style="color:#374151">{st.session_state.auth_username}</strong>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
-    if st.button("Logout", key="sb_logout_btn", use_container_width=True):
+    if st.button("Sign out", key="sb_logout_btn", use_container_width=True):
         for k in ["auth_token","auth_user_id","auth_username","auth_role"]:
             st.session_state[k] = ""
         st.rerun()
 
     st.markdown("---")
-    st.markdown("**🎛️ Filters**")
+    st.markdown("**Filters**")
 
-    # Country
     _ctr_idx = ALL_COUNTRIES.index(st.session_state.sf_country) \
                if st.session_state.sf_country in ALL_COUNTRIES else 0
     st.session_state.sf_country = st.selectbox(
         "Country", ALL_COUNTRIES, index=_ctr_idx, key="sb_country_sel")
 
-    # State / Region
     _state_opts = (["Any"] + COUNTRY_STATES.get(st.session_state.sf_country, [])
                    if st.session_state.sf_country != "Any Country" else ["Any"])
     if st.session_state.sf_state not in _state_opts:
@@ -1110,28 +841,34 @@ with st.sidebar:
         key="sb_state_sel",
         disabled=(st.session_state.sf_country == "Any Country"))
 
-    # Industry
+    _city_opts = (["Any"] + ALL_CITIES.get(st.session_state.sf_country, [])
+                  if st.session_state.sf_country != "Any Country" else ["Any"])
+    if st.session_state.sf_city not in _city_opts:
+        st.session_state.sf_city = "Any"
+    st.session_state.sf_city = st.selectbox(
+        "City", _city_opts,
+        index=_city_opts.index(st.session_state.sf_city),
+        key="sb_city_sel",
+        disabled=(st.session_state.sf_country == "Any Country"))
+
     _ind_opts = ["Any"] + ALL_INDUSTRIES
     _ind_idx  = _ind_opts.index(st.session_state.sf_industry) \
                 if st.session_state.sf_industry in _ind_opts else 0
     st.session_state.sf_industry = st.selectbox(
         "Industry", _ind_opts, index=_ind_idx, key="sb_industry_sel")
 
-    # Business type
     _ch_opts = ["Any"] + CHANNEL_TYPES
     _ch_idx  = _ch_opts.index(st.session_state.sf_channel) \
                if st.session_state.sf_channel in _ch_opts else 0
     st.session_state.sf_channel = st.selectbox(
         "Business Type", _ch_opts, index=_ch_idx, key="sb_channel_sel")
 
-    # Priority
-    _imp_opts = ["Any", "High ⭐", "Medium", "Low"]
+    _imp_opts = ["Any", "High", "Medium", "Low"]
     _imp_idx  = _imp_opts.index(st.session_state.sf_importance) \
                 if st.session_state.sf_importance in _imp_opts else 0
     st.session_state.sf_importance = st.selectbox(
         "Priority", _imp_opts, index=_imp_idx, key="sb_importance_sel")
 
-    # Sort
     _sort_opts = ["Best Match First","Priority (High → Low)",
                   "Company Name A → Z","Company Name Z → A","Newest First"]
     _sort_idx  = _sort_opts.index(st.session_state.sf_sort) \
@@ -1153,23 +890,27 @@ with st.sidebar:
                                                   value=st.session_state.sf_gaps_only)
 
     st.markdown("---")
-    st.markdown("**⚙️ Search options**")
+    st.markdown("**Search options**")
     st.session_state.scan_all = st.checkbox(
         "Scan all pages (slower)", key="sb_scan_cb",
         value=st.session_state.scan_all)
+
     _qt_labels = ["All","Basic","Good","Best"]
     _qt_map    = {"All":0,"Basic":1,"Good":2,"Best":3}
     _qt_rev    = {0:"All",1:"Basic",2:"Good",3:"Best"}
     _qt_cur    = _qt_rev.get(st.session_state.quality_threshold, "All")
-    _qt_sel    = st.select_slider("Result quality", _qt_labels,
+    _qt_sel    = st.select_slider("Output quality", _qt_labels,
                                    value=_qt_cur, key="sb_qt_sl")
     st.session_state.quality_threshold = _qt_map[_qt_sel]
 
+    q_lbl, q_desc = QUALITY_LABELS.get(st.session_state.quality_threshold, ("",""))
+    st.caption(f"{q_lbl} — {q_desc}")
+
     st.markdown("---")
-    if st.button("❌ Clear filters", use_container_width=True, key="sb_clear_btn"):
+    if st.button("Clear filters", use_container_width=True, key="sb_clear_btn"):
         st.session_state["_reset_filters"] = True
         st.rerun()
-    if st.button("🗑️ Delete all leads", use_container_width=True, key="sb_del_btn"):
+    if st.button("Delete all leads", use_container_width=True, key="sb_del_btn"):
         try:
             _api_delete("/clear", timeout=15)
             st.session_state.active_job_id  = ""
@@ -1186,24 +927,24 @@ with st.sidebar:
             st.error(str(e))
 
 # ---------------------------------------------------------------------------
-# Top nav bar  (unchanged)
+# Top nav bar
 # ---------------------------------------------------------------------------
 st.markdown(f"""
 <div class="topbar">
-  <div class="topbar-logo">🌐 Bue<span>ra</span></div>
-  <div class="topbar-user">👤 {st.session_state.auth_username}</div>
+  <div class="topbar-logo">Bue<span>ra</span></div>
+  <div class="topbar-user">{st.session_state.auth_username}</div>
 </div>
 """, unsafe_allow_html=True)
 
 lcol = st.columns([8, 1])[1]
 with lcol:
-    if st.button("Logout", key="logout_btn"):
+    if st.button("Sign out", key="logout_btn"):
         for k in ["auth_token","auth_user_id","auth_username","auth_role"]:
             st.session_state[k] = ""
         st.rerun()
 
 # ---------------------------------------------------------------------------
-# Session restore  (unchanged)
+# Session restore
 # ---------------------------------------------------------------------------
 if st.session_state.auth_token and not st.session_state.active_job_id:
     try:
@@ -1219,7 +960,7 @@ if st.session_state.auth_token and not st.session_state.active_job_id:
         pass
 
 # ===========================================================================
-# HERO SEARCH SECTION  (unchanged)
+# HERO SEARCH
 # ===========================================================================
 st.markdown("""
 <div class="search-hero">
@@ -1233,32 +974,32 @@ with sc1:
     query = st.text_input(
         "search_input",
         value=st.session_state.sf_query,
-        placeholder='Try: "LED light importers Gujarat" or "pharma distributors Mumbai"',
+        placeholder='e.g. "LED light importers Gujarat" or "pharma distributors Mumbai"',
         label_visibility="collapsed",
         key="search_input_box",
     )
     st.session_state.sf_query = query
 with sc2:
     st.markdown('<div class="search-btn">', unsafe_allow_html=True)
-    search_clicked = st.button("🔍 Search", use_container_width=True, key="main_search_btn")
+    search_clicked = st.button("Search", use_container_width=True, key="main_search_btn")
     st.markdown('</div>', unsafe_allow_html=True)
 with sc3:
-    refresh_clicked = st.button("↺ Refresh", use_container_width=True, key="refresh_btn")
+    refresh_clicked = st.button("Refresh", use_container_width=True, key="refresh_btn")
     if refresh_clicked:
         st.rerun()
 
 st.markdown("""
-<div class="chip-row" style="justify-content:flex-start;margin:8px 0 4px">
-  <span style="font-size:0.78rem;color:#94a3b8;margin-right:4px">Try:</span>
-  <span class="chip" style="background:#eff6ff;color:#1e40af;border-color:#bfdbfe">Electronics importers Delhi</span>
-  <span class="chip" style="background:#f0fdf4;color:#166534;border-color:#bbf7d0">Textile manufacturers Surat</span>
-  <span class="chip" style="background:#fdf4ff;color:#7e22ce;border-color:#e9d5ff">Pharma distributors Mumbai</span>
-  <span class="chip" style="background:#fff7ed;color:#9a3412;border-color:#fed7aa">Steel traders UAE</span>
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin:7px 0 3px;align-items:center">
+  <span style="font-size:0.74rem;color:#9ca3af">Try:</span>
+  <span class="chip">Electronics importers Delhi</span>
+  <span class="chip">Textile manufacturers Surat</span>
+  <span class="chip">Pharma distributors Mumbai</span>
+  <span class="chip">Steel traders UAE</span>
 </div>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Build and trigger search  (unchanged)
+# Build and trigger search
 # ---------------------------------------------------------------------------
 def _build_final_query() -> str:
     parts = [st.session_state.sf_query.strip()]
@@ -1308,12 +1049,16 @@ if search_clicked:
                 st.session_state.selected_tab   = ""
                 st.rerun()
             else:
-                st.error(f"Search error: {r.text}")
+                try:
+                    err = r.json().get("detail", r.text)
+                except Exception:
+                    err = f"HTTP {r.status_code}"
+                st.error(f"Search error: {err}")
         except Exception as e:
             st.error(f"Cannot reach server: {e}")
 
 # ---------------------------------------------------------------------------
-# Fetch all leads  (unchanged)
+# Fetch all leads
 # ---------------------------------------------------------------------------
 def _get_all_leads() -> list:
     cf = "" if st.session_state.sf_country == "Any Country" \
@@ -1336,12 +1081,12 @@ if company_leads or st.session_state.active_job_id:
     st.markdown("---")
 
     # -----------------------------------------------------------------------
-    # FILTER EXPANDER  (kept — still works alongside sidebar)
+    # FILTER EXPANDER
     # -----------------------------------------------------------------------
     def _clear_filters_cb():
         st.session_state["_reset_filters"] = True
 
-    with st.expander("🎛️  Filters & Options", expanded=False):
+    with st.expander("Filters & Options", expanded=False):
         st.markdown("**Narrow down your results** *(also available in the sidebar)*")
         f1, f2, f3, f4 = st.columns(4)
 
@@ -1374,7 +1119,7 @@ if company_leads or st.session_state.active_job_id:
 
         with f3:
             sel_importance = st.selectbox("Priority Level",
-                ["Any", "High ⭐", "Medium", "Low"],
+                ["Any", "High", "Medium", "Low"],
                 index=0, key="sf_importance")
             min_score = st.slider("Minimum Match Score",
                 0.0, 1.0, st.session_state.sf_min_score, 0.05,
@@ -1398,11 +1143,11 @@ if company_leads or st.session_state.active_job_id:
         with ca:
             st.checkbox("Search all pages (slower)", key="scan_all")
         with cb:
-            if st.button("❌ Clear All Filters", use_container_width=True):
+            if st.button("Clear All Filters", use_container_width=True):
                 st.session_state["_reset_filters"] = True
                 st.rerun()
         with cc:
-            if st.button("🗑️ Delete All Leads", use_container_width=True):
+            if st.button("Delete All Leads", use_container_width=True):
                 try:
                     _api_delete("/clear", timeout=15)
                     st.session_state.active_job_id  = ""
@@ -1419,24 +1164,24 @@ if company_leads or st.session_state.active_job_id:
                     st.error(str(e))
 
     # -----------------------------------------------------------------------
-    # COLUMN PICKER  (unchanged)
+    # COLUMN PICKER
     # -----------------------------------------------------------------------
-    with st.expander("📋  Choose Which Columns to Show", expanded=False):
+    with st.expander("Choose Which Columns to Show", expanded=False):
         st.markdown("**Pick exactly what information you want to see in the table**")
 
         col_groups = {
-            "🏢 Company Info": ["company","city","country_detected","industry_detected",
+            "Company Info": ["company","city","country_detected","industry_detected",
                                 "product_type","channel_type","company_size","incorporation_date"],
-            "📊 Scores & Priority": ["importance","final_score","domain_authority"],
-            "✅ Compliance": ["compliance_gaps","bis_certified","gst_registered",
+            "Scores & Priority": ["importance","final_score","domain_authority"],
+            "Compliance": ["compliance_gaps","bis_certified","gst_registered",
                               "iec_found","mca_active","mca_company_type"],
-            "📞 Contact Details": ["contact_person","contact_email","email","phone","linkedin_url"],
-            "🌐 Online Presence": ["active_website"],
-            "🤖 AI Analysis": ["ai_summary","products","usp","key_customers"],
-            "💰 Business Details": ["annual_turnover","certifications","export_markets","grok_score"],
-            "📱 Social Media": ["linkedin_url","twitter_url","facebook_url","instagram_url","youtube_url","whatsapp_url"],
-            "🔍 Lead Validation": ["is_valid_lead","rejection_reason","contact_title","contact_confidence","is_directory","directory_count"],
-            "🔍 Search Info": ["searched_query","created_at"],
+            "Contact Details": ["contact_person","contact_email","email","phone","linkedin_url"],
+            "Online Presence": ["active_website"],
+            "AI Analysis": ["ai_summary","products","usp","key_customers"],
+            "Business Details": ["annual_turnover","certifications","export_markets","grok_score"],
+            "Social Media": ["linkedin_url","twitter_url","facebook_url","instagram_url","youtube_url","whatsapp_url"],
+            "Lead Validation": ["is_valid_lead","rejection_reason","contact_title","contact_confidence","is_directory","directory_count"],
+            "Search Info": ["searched_query","created_at"],
         }
 
         new_visible = []
@@ -1461,16 +1206,16 @@ if company_leads or st.session_state.active_job_id:
 
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
-            if st.button("✅ Apply Column Selection", use_container_width=True):
+            if st.button("Apply Column Selection", use_container_width=True):
                 st.session_state.visible_cols = new_visible if new_visible else DEFAULT_COLUMNS[:]
                 st.rerun()
         with col_btn2:
-            if st.button("↺ Reset to Default Columns", use_container_width=True):
+            if st.button("Reset to Default Columns", use_container_width=True):
                 st.session_state.visible_cols = DEFAULT_COLUMNS[:]
                 st.rerun()
 
 # ===========================================================================
-# LIVE SEARCH STATUS  (unchanged)
+# LIVE SEARCH STATUS
 # ===========================================================================
 if st.session_state.active_job_id:
     status = None
@@ -1489,8 +1234,8 @@ if st.session_state.active_job_id:
         if sv in ("running", "queued"):
             st.markdown(f"""
             <div class="info-box">
-              ⏳ <strong>Searching…</strong> — Found {saved} companies so far
-              · Page {pages} scanned · Auto-refreshing every {POLL_SECONDS}s
+              Searching — {saved} companies found so far
+              &nbsp;·&nbsp; {pages} pages scanned &nbsp;·&nbsp; auto-refreshing
             </div>
             """, unsafe_allow_html=True)
             time.sleep(POLL_SECONDS)
@@ -1499,7 +1244,7 @@ if st.session_state.active_job_id:
         elif sv == "completed":
             jid = status.get("job_id", "")
             if jid and jid not in st.session_state.notified_jobs:
-                st.toast(f"✅ Search done — {saved} companies found!")
+                st.toast(f"Search done — {saved} companies found!")
                 st.session_state.notified_jobs.append(jid)
             if status.get("ask_continue"):
                 c1, c2 = st.columns(2)
@@ -1509,7 +1254,7 @@ if st.session_state.active_job_id:
                     st.markdown("<br>", unsafe_allow_html=True)
                     cc1, cc2 = st.columns(2)
                     with cc1:
-                        if st.button("▶️ Yes, find more", use_container_width=True):
+                        if st.button("Yes, find more", use_container_width=True):
                             cf = "" if st.session_state.sf_country == "Any Country" \
                                  else st.session_state.sf_country.lower()
                             try:
@@ -1527,11 +1272,11 @@ if st.session_state.active_job_id:
                             except Exception as e:
                                 st.error(str(e))
                     with cc2:
-                        if st.button("⏹️ No thanks", use_container_width=True):
+                        if st.button("No thanks", use_container_width=True):
                             st.session_state.active_job_id = ""
                             st.rerun()
             else:
-                st.success(f"✅ Search complete — {saved} companies found. Use filters to narrow down.")
+                st.success(f"Search complete — {saved} companies found.")
                 st.session_state.active_job_id = ""
 
         elif sv == "failed":
@@ -1539,7 +1284,7 @@ if st.session_state.active_job_id:
             st.session_state.active_job_id = ""
 
 # ===========================================================================
-# APPLY FILTERS  (unchanged)
+# APPLY FILTERS
 # ===========================================================================
 def _apply_filters(leads: list) -> list:
     df = pd.DataFrame(leads) if leads else pd.DataFrame()
@@ -1553,7 +1298,7 @@ def _apply_filters(leads: list) -> list:
         city_val = st.session_state.sf_city.lower()
         df = df[df["city"].astype(str).str.lower().str.contains(city_val, na=False)]
 
-    imp_map = {"High ⭐": "high", "Medium": "medium", "Low": "low"}
+    imp_map = {"High": "high", "Medium": "medium", "Low": "low"}
     imp_val = imp_map.get(st.session_state.sf_importance)
     if imp_val and "importance" in df.columns:
         df = df[df["importance"].astype(str).str.lower() == imp_val]
@@ -1594,7 +1339,7 @@ def _apply_filters(leads: list) -> list:
     return df.reset_index(drop=True).to_dict("records")
 
 # ===========================================================================
-# DISPLAY HELPERS  (all originals kept)
+# DISPLAY HELPERS
 # ===========================================================================
 def _bool_icon(val):
     if val is True:  return "✅"
@@ -1603,13 +1348,13 @@ def _bool_icon(val):
 
 def _importance_pill(imp):
     imp = str(imp).lower()
-    if imp == "high":   return '<span class="status-pill pill-high">⭐ High</span>'
+    if imp == "high":   return '<span class="status-pill pill-high">High</span>'
     if imp == "medium": return '<span class="status-pill pill-medium">Medium</span>'
     return '<span class="status-pill pill-low">Low</span>'
 
 def _gap_pill(gaps):
     if not isinstance(gaps, list) or not gaps:
-        return '<span class="status-pill pill-clean">✓ No Issues</span>'
+        return '<span class="status-pill pill-clean">Clean</span>'
     labels = [GAP_LABELS.get(g, g) for g in gaps]
     return f'<span class="status-pill pill-gap">⚠ {", ".join(labels)}</span>'
 
@@ -1627,15 +1372,14 @@ def _show_metrics(leads: list):
     mfg    = int((df.get("channel_type", pd.Series(dtype=str)).astype(str) == "Manufacturer").sum()) \
              if "channel_type" in df.columns else 0
     m1,m2,m3,m4,m5 = st.columns(5)
-    m1.metric("Companies Found",       total)
-    m2.metric("⭐ High Priority",       high)
-    m3.metric("📧 Have Email",          w_email)
-    m4.metric("⚠️ Compliance Issues",  w_gap)
-    m5.metric("🏭 Manufacturers",       mfg)
+    m1.metric("Companies found", total)
+    m2.metric("High priority",   high)
+    m3.metric("Have email",      w_email)
+    m4.metric("Compliance issues", w_gap)
+    m5.metric("Manufacturers",   mfg)
 
 
 def _show_cards(leads: list):
-    """Original full-card render — kept for Table/Cards toggle."""
     if not leads:
         st.markdown("""
         <div class="empty-state">
@@ -1688,33 +1432,33 @@ def _show_cards(leads: list):
 
         links_html = ""
         if website and website not in ("nan", ""):
-            links_html += f'<a class="card-link" href="{website}" target="_blank">🌐 Website</a>'
+            links_html += f'<a class="card-link" href="{website}" target="_blank">Website</a>'
         if email and "@" in email:
-            links_html += f'<a class="card-link" href="mailto:{email}">📧 {email}</a>'
+            links_html += f'<a class="card-link" href="mailto:{email}">{email}</a>'
         if phone and phone not in ("nan",""):
-            links_html += f'<span class="card-link">📞 {phone}</span>'
+            links_html += f'<span class="card-link">{phone}</span>'
         if linkedin and linkedin not in ("nan",""):
-            links_html += f'<a class="card-link" href="{linkedin}" target="_blank">💼 LinkedIn</a>'
+            links_html += f'<a class="card-link" href="{linkedin}" target="_blank">LinkedIn</a>'
         if twitter and twitter not in ("nan",""):
-            links_html += f'<a class="card-link" href="{twitter}" target="_blank">🐦 X/Twitter</a>'
+            links_html += f'<a class="card-link" href="{twitter}" target="_blank">X</a>'
         if facebook and facebook not in ("nan",""):
-            links_html += f'<a class="card-link" href="{facebook}" target="_blank">📘 Facebook</a>'
+            links_html += f'<a class="card-link" href="{facebook}" target="_blank">Facebook</a>'
         if instagram and instagram not in ("nan",""):
-            links_html += f'<a class="card-link" href="{instagram}" target="_blank">📸 Instagram</a>'
+            links_html += f'<a class="card-link" href="{instagram}" target="_blank">Instagram</a>'
         if youtube and youtube not in ("nan",""):
-            links_html += f'<a class="card-link" href="{youtube}" target="_blank">▶️ YouTube</a>'
+            links_html += f'<a class="card-link" href="{youtube}" target="_blank">YouTube</a>'
         if whatsapp and whatsapp not in ("nan",""):
-            links_html += f'<a class="card-link" href="{whatsapp}" target="_blank">💬 WhatsApp</a>'
+            links_html += f'<a class="card-link" href="{whatsapp}" target="_blank">WhatsApp</a>'
 
         extra_html = ""
         if turnover and turnover not in ("nan",""):
-            extra_html += f'<span class="card-tag" style="background:#f0fdf4;color:#166534">💰 {turnover}</span>'
+            extra_html += f'<span class="card-tag">{turnover}</span>'
         if isinstance(certs, list) and certs:
-            extra_html += f'<span class="card-tag" style="background:#eff6ff;color:#1e40af">✅ {", ".join(certs[:3])}</span>'
+            extra_html += f'<span class="card-tag">{", ".join(certs[:3])}</span>'
         if isinstance(exports, list) and exports:
-            extra_html += f'<span class="card-tag" style="background:#fdf4ff;color:#7e22ce">🌍 Exports: {", ".join(exports[:3])}</span>'
+            extra_html += f'<span class="card-tag">Exports: {", ".join(exports[:3])}</span>'
         if isinstance(key_cust, list) and key_cust:
-            extra_html += f'<span class="card-tag" style="background:#fff7ed;color:#9a3412">👥 {", ".join(key_cust[:2])}</span>'
+            extra_html += f'<span class="card-tag">{", ".join(key_cust[:2])}</span>'
 
         tags_html = "".join(f'<span class="card-tag">{t}</span>' for t in tags)
         contact_name = row.get("contact_person","")
@@ -1726,7 +1470,7 @@ def _show_cards(leads: list):
               <div class="card-company">{company}</div>
               <div class="card-meta">{'📍 ' + location if location else ''}</div>
             </div>
-            <div style="display:flex;gap:6px;flex-shrink:0;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+            <div style="display:flex;gap:5px;flex-shrink:0;align-items:center;flex-wrap:wrap;justify-content:flex-end">
               {_importance_pill(imp)}
               {_gap_pill(gaps)}
               <span class="score-badge">{score:.2f}</span>
@@ -1734,11 +1478,11 @@ def _show_cards(leads: list):
           </div>
           {'<div class="card-tags">'+tags_html+'</div>' if tags_html else ''}
           {'<div class="card-summary">'+summary+'</div>' if summary and summary != "nan" else ''}
-          {'<div class="card-summary" style="color:#1e40af;font-size:0.78rem">📦 '+prod_str+'</div>' if prod_str else ''}
-          {'<div class="card-summary" style="color:#6b7280;font-size:0.78rem;font-style:italic">💡 '+usp+'</div>' if usp and usp != "nan" else ''}
-          {'<div style="font-size:0.75rem;color:#374151;margin:4px 0"><strong>👤 Contact:</strong> '+str(contact_name)+(" — "+ctitle if ctitle and ctitle!="nan" else "")+(" <span style=\'color:#10b981\'>("+cconfidence+" confidence)</span>" if cconfidence not in ("","nan","low") else "")+"</div>" if contact_name else ""}
-          {'<div style="font-size:0.73rem;background:#fef9c3;color:#854d0e;padding:4px 10px;border-radius:6px;margin:4px 0;">📂 Directory — contains <strong>'+str(dir_count)+' companies</strong>.</div>' if is_dir and dir_count > 0 else ''}
-          {'<div style="font-size:0.73rem;background:#fee2e2;color:#991b1b;padding:4px 10px;border-radius:6px;margin:4px 0;">⚠️ Grok flagged: '+rejection+'</div>' if not is_valid and rejection and rejection!="nan" else ''}
+          {'<div class="card-summary" style="font-size:0.78rem;color:#4b5563">'+prod_str+'</div>' if prod_str else ''}
+          {'<div class="card-summary" style="font-size:0.77rem;color:#6b7280;font-style:italic">'+usp+'</div>' if usp and usp != "nan" else ''}
+          {'<div style="font-size:0.75rem;color:#374151;margin:4px 0"><strong>Contact:</strong> '+str(contact_name)+(" — "+ctitle if ctitle and ctitle!="nan" else "")+(" ("+cconfidence+" confidence)" if cconfidence not in ("","nan","low") else "")+"</div>" if contact_name else ""}
+          {'<div style="font-size:0.73rem;background:#fef9c3;color:#854d0e;padding:4px 10px;border-radius:6px;margin:4px 0;">Directory — contains '+str(dir_count)+' companies</div>' if is_dir and dir_count > 0 else ''}
+          {'<div style="font-size:0.73rem;background:#fee2e2;color:#991b1b;padding:4px 10px;border-radius:6px;margin:4px 0;">AI note: '+rejection+'</div>' if not is_valid and rejection and rejection!="nan" else ''}
           {'<div class="card-tags" style="margin-top:6px">'+extra_html+'</div>' if extra_html else ''}
           {'<div class="card-links">'+links_html+'</div>' if links_html else ''}
         </div>
@@ -1778,7 +1522,7 @@ def _show_table(leads: list, key_suffix: str = ""):
         if col in csv_df.columns:
             csv_df[col] = csv_df[col].apply(lambda v: ", ".join(v) if isinstance(v, list) else str(v or ""))
     csv = csv_df.to_csv(index=False).encode("utf-8")
-    st.download_button("⬇️ Download as CSV", data=csv,
+    st.download_button("Download as CSV", data=csv,
                        file_name=f"leads_{key_suffix}.csv", mime="text/csv",
                        key=f"dl_{key_suffix}_{len(leads)}")
 
@@ -1802,7 +1546,7 @@ def _show_extracted_companies(companies: list, key_suffix: str = "", query: str 
     df = pd.DataFrame(rows)
     st.dataframe(df, use_container_width=True, height=min(60 + len(df)*36, 500))
     csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("⬇️ Download All as CSV", data=csv,
+    st.download_button("Download All as CSV", data=csv,
                        file_name=f"directory_{key_suffix}.csv", mime="text/csv",
                        key=f"dl_dir_{key_suffix}_{len(companies)}")
     if st.checkbox("Show as cards", key=f"cards_dir_{key_suffix}"):
@@ -1816,27 +1560,26 @@ def _show_extracted_companies(companies: list, key_suffix: str = "", query: str 
             snippet = str(c.get("snippet",""))[:150]
             links = ""
             if website and website not in ("nan","—",""):
-                links += f'<a class="card-link" href="{website}" target="_blank">🌐 Website</a>'
+                links += f'<a class="card-link" href="{website}" target="_blank">Website</a>'
             if email and "@" in email:
-                links += f'<a class="card-link" href="mailto:{email}">📧 {email}</a>'
+                links += f'<a class="card-link" href="mailto:{email}">{email}</a>'
             if phone and phone not in ("nan","—",""):
-                links += f'<span class="card-link">📞 {phone}</span>'
+                links += f'<span class="card-link">{phone}</span>'
             st.markdown(f"""
             <div class="result-card">
               <div class="card-company">{name}</div>
               <div class="card-meta">{"📍 "+city if city and city not in ("nan","—") else ""}</div>
-              {"<div class='card-summary'>📦 "+prods+"</div>" if prods and prods not in ("nan","—") else ""}
-              {"<div class='card-summary' style='color:#64748b'>"+snippet+"</div>" if snippet and snippet not in ("nan","—") else ""}
+              {"<div class='card-summary'>"+prods+"</div>" if prods and prods not in ("nan","—") else ""}
+              {"<div class='card-summary' style='color:#6b7280'>"+snippet+"</div>" if snippet and snippet not in ("nan","—") else ""}
               {"<div class='card-links'>"+links+"</div>" if links else ""}
             </div>
             """, unsafe_allow_html=True)
 
 # ===========================================================================
-# ADDED: Collapsed-cell card list with AI expand
+# COLLAPSED CELL + EXPAND
 # ===========================================================================
 
 def _card_id(row: dict, idx: int) -> str:
-    """Stable ID for a result row."""
     return str(row.get("_id") or f"{str(row.get('company','?'))[:20]}_{idx}")
 
 
@@ -1846,7 +1589,6 @@ def _channel_emoji(ch: str) -> str:
 
 
 def _fetch_ai_detail(row: dict) -> dict:
-    """Call /research/deep to enrich a row with extra intelligence."""
     company = row.get("company","")
     website = row.get("active_website", row.get("website",""))
     if not company:
@@ -1870,273 +1612,7 @@ def _fetch_ai_detail(row: dict) -> dict:
     return row
 
 
-def _render_cell(row: dict, cid: str):
-    """One-line collapsed row."""
-    company   = str(row.get("company", "Unknown"))
-    city      = str(row.get("city", ""))
-    country   = str(row.get("country_detected", ""))
-    channel   = str(row.get("channel_type", ""))
-    imp       = str(row.get("importance", "low"))
-    score     = float(row.get("final_score", 0) or 0)
-    gaps      = row.get("compliance_gaps", [])
-    email     = str(row.get("email", ""))
-    is_dir    = bool(row.get("is_directory", False))
-    loc       = ", ".join(filter(None, [city, country]))
-    emoji     = "📂" if is_dir else _channel_emoji(channel)
-    has_email = "🟢 " if "@" in email else ""
-
-    st.markdown(f"""
-    <div class="lead-cell">
-      <div class="cell-icon">{emoji}</div>
-      <div class="cell-body">
-        <div class="cell-name">{company}</div>
-        <div class="cell-meta">{("📍 "+loc+"  ·  ") if loc else ""}{channel}{("  ·  "+has_email+"email") if has_email else ""}</div>
-      </div>
-      <div class="cell-right">
-        {_importance_pill(imp)}
-        {_gap_pill(gaps)}
-        {'<span class="status-pill" style="background:#fdf4ff;color:#7e22ce">📂 Dir</span>' if is_dir else ''}
-        <span class="score-badge">{score:.2f}</span>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-def _render_expanded_card(row: dict, cid: str):
-    """Full expanded card with all fields + AI intelligence."""
-    company   = str(row.get("company", "—"))
-    city      = str(row.get("city", ""))
-    country   = str(row.get("country_detected", ""))
-    industry  = str(row.get("industry_detected", ""))
-    channel   = str(row.get("channel_type", ""))
-    score     = float(row.get("final_score", 0) or 0)
-    imp       = str(row.get("importance", "low"))
-    gaps      = row.get("compliance_gaps", [])
-    email     = str(row.get("email", ""))
-    phone     = str(row.get("phone", ""))
-    website   = str(row.get("active_website", row.get("website","")))
-    linkedin  = str(row.get("linkedin_url", ""))
-    summary   = str(row.get("ai_summary", ""))
-    products  = row.get("products", [])
-    size      = str(row.get("company_size", ""))
-    founded   = str(row.get("incorporation_date", ""))
-    turnover  = str(row.get("annual_turnover", ""))
-    certs     = row.get("certifications", [])
-    exports   = row.get("export_markets", [])
-    usp       = str(row.get("usp", ""))
-    key_cust  = row.get("key_customers", [])
-    contact   = str(row.get("contact_person", ""))
-    c_title   = str(row.get("contact_title", ""))
-    c_conf    = str(row.get("contact_confidence", ""))
-    c_email   = str(row.get("contact_email", ""))
-    is_dir    = bool(row.get("is_directory", False))
-    dir_cos   = row.get("directory_companies", [])
-    dir_count = int(row.get("directory_count", 0) or 0)
-    is_valid  = bool(row.get("is_valid_lead", True))
-    rejection = str(row.get("rejection_reason", ""))
-
-    # AI research extras
-    signals   = row.get("_research_signals", [])
-    news      = row.get("_research_news", [])
-    social_r  = row.get("_research_social", {})
-
-    loc = ", ".join(filter(None, [city, country]))
-
-    # Tags
-    tag_parts = [t for t in [industry, channel, size,
-                              f"Est. {founded}" if founded and founded!="nan" else ""]
-                 if t and t not in ("nan","")]
-    tags_html = "".join(f'<span class="card-tag">{t}</span>' for t in tag_parts)
-    if turnover and turnover not in ("nan",""):
-        tags_html += f'<span class="card-tag" style="background:#f0fdf4;color:#166534">💰 {turnover}</span>'
-
-    # Links
-    links_html = ""
-    if website and website not in ("nan",""):
-        links_html += f'<a class="card-link" href="{website}" target="_blank">🌐 Website</a>'
-    if email and "@" in email:
-        links_html += f'<a class="card-link" href="mailto:{email}">📧 {email}</a>'
-    if phone and phone not in ("nan",""):
-        links_html += f'<span class="card-link">📞 {phone}</span>'
-    if linkedin and linkedin not in ("nan",""):
-        links_html += f'<a class="card-link" href="{linkedin}" target="_blank">💼 LinkedIn</a>'
-    for field, icon, label in [
-        ("twitter_url","🐦","X"),("facebook_url","📘","Facebook"),
-        ("instagram_url","📸","Instagram"),("youtube_url","▶️","YouTube"),
-        ("whatsapp_url","💬","WhatsApp"),
-    ]:
-        v = str(row.get(field,""))
-        if v and v not in ("nan",""):
-            links_html += f'<a class="card-link" href="{v}" target="_blank">{icon} {label}</a>'
-    # From AI research social
-    for plat, icon in [("linkedin","💼"),("twitter","🐦"),("facebook","📘"),
-                       ("instagram","📸"),("youtube","▶️")]:
-        v = social_r.get(plat,"")
-        if v and v not in ("nan","") and not row.get(plat+"_url"):
-            links_html += f'<a class="card-link" href="{v}" target="_blank">{icon}</a>'
-
-    # Gap display
-    gap_html = ""
-    if isinstance(gaps, list) and gaps:
-        for g in [GAP_LABELS.get(x,x) for x in gaps]:
-            gap_html += f'<span class="status-pill pill-gap" style="margin-right:5px">⚠ {g}</span>'
-    else:
-        gap_html = '<span class="status-pill pill-clean">✓ No compliance issues</span>'
-
-    prod_str = ""
-    if isinstance(products, list) and products:
-        prod_str = "  ·  ".join(str(p) for p in products[:6])
-
-    st.markdown(f"""
-    <div class="expanded-card">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-        <div>
-          <div class="expanded-title">{company}</div>
-          <div class="expanded-sub">
-            {'📍 '+loc+'  ·  ' if loc else ''}{channel+' '+_channel_emoji(channel) if channel else ''}
-          </div>
-        </div>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          {_importance_pill(imp)}
-          <span class="score-badge">{score:.2f}</span>
-          {'<span class="status-pill" style="background:#fdf4ff;color:#7e22ce">📂 Directory</span>' if is_dir else ''}
-        </div>
-      </div>
-      {'<div class="card-tags" style="margin:10px 0">'+tags_html+'</div>' if tags_html else ''}
-      {'<div class="expanded-section">About</div><div class="expanded-body">'+summary+'</div>' if summary and summary not in ("nan","") else ''}
-      {'<div class="expanded-section">Unique Selling Point</div><div class="expanded-body" style="font-style:italic">'+usp+'</div>' if usp and usp not in ("nan","") else ''}
-      {'<div class="expanded-section">Products & Services</div><div class="expanded-body">'+prod_str+'</div>' if prod_str else ''}
-    """, unsafe_allow_html=True)
-
-    if contact and contact not in ("nan",""):
-        st.markdown(f"""
-      <div class="expanded-section">Key Contact</div>
-      <div class="expanded-body">
-        👤 <strong>{contact}</strong>
-        {('  —  '+c_title) if c_title and c_title!='nan' else ''}
-        {(' <span style="color:#059669;font-size:0.72rem">('+c_conf+' confidence)</span>') if c_conf not in ('','nan','low') else ''}
-        {('<br>📧 '+c_email) if c_email and '@' in c_email and c_email not in (email,) else ''}
-      </div>
-        """, unsafe_allow_html=True)
-
-    # Compliance
-    st.markdown(f"""
-      <div class="expanded-section">Compliance Status</div>
-      <div style="margin-bottom:8px">{gap_html}</div>
-    """, unsafe_allow_html=True)
-
-    if isinstance(certs, list) and certs:
-        st.markdown(f'<div class="expanded-section">Certifications</div>'
-                    f'<div class="expanded-body">{" · ".join(certs[:8])}</div>',
-                    unsafe_allow_html=True)
-    if isinstance(exports, list) and exports:
-        st.markdown(f'<div class="expanded-section">Export Markets</div>'
-                    f'<div class="expanded-body">{" · ".join(exports[:6])}</div>',
-                    unsafe_allow_html=True)
-    if isinstance(key_cust, list) and key_cust:
-        st.markdown(f'<div class="expanded-section">Key Customers</div>'
-                    f'<div class="expanded-body">{" · ".join(key_cust[:4])}</div>',
-                    unsafe_allow_html=True)
-
-    # AI research signals
-    if signals:
-        sigs_html = "  ".join(signals)
-        st.markdown(f'<div class="expanded-section">Intelligence Signals</div>'
-                    f'<div class="expanded-body">{sigs_html}</div>',
-                    unsafe_allow_html=True)
-
-    # News
-    if news:
-        news_html = "<br>".join(
-            f'<a href="{n.get("url","#")}" target="_blank" class="card-link">📰 {n.get("title","")[:80]}</a>'
-            for n in news[:3])
-        st.markdown(f'<div class="expanded-section">Recent News</div>'
-                    f'<div class="expanded-body">{news_html}</div>',
-                    unsafe_allow_html=True)
-
-    if links_html:
-        st.markdown(f'<div class="card-links" style="margin-top:12px">{links_html}</div>',
-                    unsafe_allow_html=True)
-
-    if not is_valid and rejection and rejection not in ("nan",""):
-        st.markdown(f'<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;'
-                    f'padding:8px 12px;font-size:0.78rem;color:#b91c1c;margin-top:8px">'
-                    f'⚠️ AI note: {rejection}</div>',
-                    unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # ── Directory inline extraction ──
-    if is_dir:
-        st.markdown(f"""
-        <div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:10px;
-             padding:11px 15px;margin-top:8px;font-size:0.82rem;color:#7e22ce">
-          📂 <strong>Directory page</strong> — lists ~{dir_count} companies.
-        </div>
-        """, unsafe_allow_html=True)
-
-        if dir_cos:
-            # Already extracted — show inline
-            st.markdown(f"**{len(dir_cos)} companies extracted from this directory:**")
-            for c in dir_cos[:30]:
-                name    = str(c.get("company","—"))
-                c_city  = str(c.get("city",""))
-                c_ph    = str(c.get("phone",""))
-                c_em    = str(c.get("email",""))
-                c_web   = str(c.get("website",""))
-                c_prods = str(c.get("products",""))[:80]
-                c_lnk = ""
-                if c_web and c_web not in ("nan","—",""):
-                    c_lnk += f'  <a class="card-link" href="{c_web}" target="_blank">🌐</a>'
-                if c_em and "@" in c_em:
-                    c_lnk += f'  <a class="card-link" href="mailto:{c_em}">📧</a>'
-                st.markdown(f"""
-                <div class="dir-item">
-                  <strong>{name}</strong>
-                  {'  ·  📍'+c_city if c_city and c_city not in ('nan','—') else ''}
-                  {c_lnk}
-                  {'<br><span style="color:#64748b">'+c_prods+'</span>' if c_prods and c_prods not in ('nan','—') else ''}
-                </div>
-                """, unsafe_allow_html=True)
-            if len(dir_cos) > 30:
-                st.caption(f"…and {len(dir_cos)-30} more")
-            # CSV download
-            df_dir = pd.DataFrame([{
-                "Company":c.get("company",""), "City":c.get("city",""),
-                "Phone":c.get("phone",""), "Email":c.get("email",""),
-                "Website":c.get("website",""), "Products":c.get("products",""),
-            } for c in dir_cos])
-            csv_dir = df_dir.to_csv(index=False).encode("utf-8")
-            st.download_button("⬇️ Download directory companies", data=csv_dir,
-                               file_name=f"dir_{cid[:8]}.csv", mime="text/csv",
-                               key=f"dl_dir_exp_{cid}")
-        else:
-            if st.button("⚡ Extract all companies from this directory",
-                         key=f"dir_extract_{cid}", type="primary"):
-                with st.spinner("Extracting companies with AI… 30–60 seconds"):
-                    try:
-                        r = _api_post("/leads/extract-directory",
-                                      json={"website": website,
-                                            "content": row.get("content",""),
-                                            "query": st.session_state.active_query},
-                                      timeout=120)
-                        if r.status_code == 200:
-                            res = r.json()
-                            cos = res.get("companies", [])
-                            # Cache in card_details
-                            updated = dict(st.session_state.card_details.get(cid, row))
-                            updated["directory_companies"] = cos
-                            st.session_state.card_details[cid] = updated
-                            st.success(f"✅ Extracted {len(cos)} companies!")
-                            st.rerun()
-                        else:
-                            st.error(f"Extraction failed: {r.text}")
-                    except Exception as e:
-                        st.error(str(e))
-
-
 def _render_card_list(leads: list, key_suffix: str = ""):
-    """Left panel — compact selectable cells."""
     if not leads:
         st.markdown("""
         <div class="empty-state">
@@ -2163,38 +1639,35 @@ def _render_card_list(leads: list, key_suffix: str = ""):
         is_dir    = bool(row.get("is_directory", False))
         loc       = ", ".join(filter(None, [city, country]))
         emoji     = "📂" if is_dir else _channel_emoji(channel)
-        has_email = " 🟢" if "@" in email else ""
+        has_email = " ·  email" if "@" in email else ""
 
-        # Build gap badge inline (no external function that returns HTML fragments)
         if isinstance(gaps, list) and gaps:
-            gap_badge = f'<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:600;background:#fee2e2;color:#991b1b">⚠ Issues</span>'
+            gap_badge = '<span class="status-pill pill-gap">⚠ Issues</span>'
         else:
-            gap_badge = f'<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:600;background:#dcfce7;color:#166534">✓ Clean</span>'
+            gap_badge = '<span class="status-pill pill-clean">Clean</span>'
 
         imp_lower = imp.lower()
         if imp_lower == "high":
-            imp_badge = '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:600;background:#dcfce7;color:#166534">⭐ High</span>'
+            imp_badge = '<span class="status-pill pill-high">High</span>'
         elif imp_lower == "medium":
-            imp_badge = '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:600;background:#fef9c3;color:#854d0e">Medium</span>'
+            imp_badge = '<span class="status-pill pill-medium">Medium</span>'
         else:
-            imp_badge = '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:600;background:#f1f5f9;color:#64748b">Low</span>'
+            imp_badge = '<span class="status-pill pill-low">Low</span>'
 
-        border_color = "#1e40af" if is_sel else "#e2e8f0"
-        bg_color     = "#eff6ff" if is_sel else "white"
+        border_color = "#6366f1" if is_sel else "#e5e7eb"
+        bg_color     = "#eef2ff" if is_sel else "#fff"
 
-        # Single complete self-contained HTML block — no split divs
         st.markdown(f"""
         <div style="background:{bg_color};border:1.5px solid {border_color};border-radius:10px;
-                    padding:11px 14px;margin-bottom:5px;cursor:pointer;
-                    transition:border-color .12s,background .1s;">
+                    padding:11px 14px;margin-bottom:5px;cursor:pointer;">
           <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:34px;height:34px;border-radius:8px;background:#eff6ff;
+            <div style="width:34px;height:34px;border-radius:8px;background:#f3f4f6;
                         display:flex;align-items:center;justify-content:center;
                         font-size:1rem;flex-shrink:0;">{emoji}</div>
             <div style="flex:1;min-width:0;">
-              <div style="font-size:0.88rem;font-weight:700;color:#1e293b;
+              <div style="font-size:0.88rem;font-weight:600;color:#111827;
                           white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{company}</div>
-              <div style="font-size:0.72rem;color:#64748b;margin-top:1px;
+              <div style="font-size:0.72rem;color:#6b7280;margin-top:1px;
                           white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                 {"📍 "+loc+"  ·  " if loc else ""}{channel}{has_email}
               </div>
@@ -2202,14 +1675,13 @@ def _render_card_list(leads: list, key_suffix: str = ""):
             <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
               {imp_badge}
               {gap_badge}
-              <span style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;
-                           padding:2px 8px;border-radius:5px;font-size:0.72rem;font-weight:700;">{score:.2f}</span>
+              <span class="score-badge">{score:.2f}</span>
             </div>
           </div>
         </div>
         """, unsafe_allow_html=True)
 
-        btn_label = "✓ Selected" if is_sel else "Open →"
+        btn_label = "Close" if is_sel else "Open →"
         if st.button(btn_label, key=f"sel_{key_suffix}_{cid}_{idx}",
                      use_container_width=True):
             if not is_sel:
@@ -2226,32 +1698,24 @@ def _render_card_list(leads: list, key_suffix: str = ""):
 
 
 def _safe(v: str) -> str:
-    """Return empty string if value is nan/None/empty."""
     return "" if str(v).strip().lower() in ("nan", "none", "") else str(v).strip()
 
 
 def _render_detail_panel(cid: str):
-    """
-    Right panel — builds the ENTIRE detail card as ONE html string
-    then emits it in a single st.markdown call.
-    Interactive widgets (buttons, download) are rendered after the HTML block.
-    """
     row = st.session_state.card_details.get(cid)
     if not row:
         st.markdown("""
         <div style="display:flex;flex-direction:column;align-items:center;
-                    justify-content:center;min-height:280px;
-                    border:1.5px dashed #e2e8f0;border-radius:14px;
-                    background:white;text-align:center;padding:40px 20px;">
-          <div style="font-size:2.8rem;margin-bottom:10px;">👈</div>
-          <p style="color:#94a3b8;font-size:0.83rem;margin:0;line-height:1.5;">
-            Select a company on the left<br>to see full details here.
+                    justify-content:center;min-height:260px;
+                    border:1.5px dashed #e5e7eb;border-radius:12px;
+                    background:#fff;text-align:center;padding:40px 20px;">
+          <p style="color:#9ca3af;font-size:0.83rem;margin:0;line-height:1.5;">
+            Select a company on the left to see full details here.
           </p>
         </div>
         """, unsafe_allow_html=True)
         return
 
-    # ── Extract all fields ──
     company   = _safe(row.get("company", ""))   or "Unknown"
     city      = _safe(row.get("city", ""))
     country   = _safe(row.get("country_detected", ""))
@@ -2289,154 +1753,125 @@ def _render_detail_panel(cid: str):
     loc      = ", ".join(filter(None, [city, country]))
     prod_str = "  ·  ".join(str(p) for p in products[:8] if _safe(str(p)))
 
-    # ── Build importance badge ──
     imp_lower = imp.lower()
     if imp_lower == "high":
-        imp_badge = '<span style="padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:600;background:#dcfce7;color:#166534;">⭐ High</span>'
+        imp_badge = '<span class="status-pill pill-high">High</span>'
     elif imp_lower == "medium":
-        imp_badge = '<span style="padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:600;background:#fef9c3;color:#854d0e;">Medium</span>'
+        imp_badge = '<span class="status-pill pill-medium">Medium</span>'
     else:
-        imp_badge = '<span style="padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:600;background:#f1f5f9;color:#64748b;">Low</span>'
+        imp_badge = '<span class="status-pill pill-low">Low</span>'
 
-    # ── Build tags ──
     tag_items = [t for t in [industry, channel, size,
                               f"Est. {founded}" if founded else ""] if t]
     if turnover:
-        tags_html = "".join(f'<span style="background:#f1f5f9;color:#475569;padding:3px 10px;border-radius:6px;font-size:0.72rem;font-weight:500;margin-right:4px;">{t}</span>' for t in tag_items)
-        tags_html += f'<span style="background:#f0fdf4;color:#166534;padding:3px 10px;border-radius:6px;font-size:0.72rem;font-weight:500;margin-right:4px;">💰 {turnover}</span>'
+        tags_html = "".join(f'<span class="card-tag">{t}</span>' for t in tag_items)
+        tags_html += f'<span class="card-tag">{turnover}</span>'
     else:
-        tags_html = "".join(f'<span style="background:#f1f5f9;color:#475569;padding:3px 10px;border-radius:6px;font-size:0.72rem;font-weight:500;margin-right:4px;">{t}</span>' for t in tag_items)
+        tags_html = "".join(f'<span class="card-tag">{t}</span>' for t in tag_items)
 
-    # ── Build compliance ──
     if isinstance(gaps, list) and gaps:
-        gap_html = " ".join(f'<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:600;background:#fee2e2;color:#991b1b;margin-right:4px;margin-bottom:4px;">⚠ {GAP_LABELS.get(g,g)}</span>' for g in gaps)
+        gap_html = " ".join(f'<span class="status-pill pill-gap" style="margin-right:4px;margin-bottom:4px;">⚠ {GAP_LABELS.get(g,g)}</span>' for g in gaps)
     else:
-        gap_html = '<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:600;background:#dcfce7;color:#166534;">✓ No compliance issues</span>'
+        gap_html = '<span class="status-pill pill-clean">No compliance issues</span>'
 
-    # ── Build links ──
     links_parts = []
     if website:
-        links_parts.append(f'<a href="{website}" target="_blank" style="color:#1e40af;font-size:0.78rem;font-weight:600;text-decoration:none;margin-right:12px;">🌐 Website</a>')
+        links_parts.append(f'<a href="{website}" target="_blank" class="detail-link">Website</a>')
     if email and "@" in email:
-        links_parts.append(f'<a href="mailto:{email}" style="color:#1e40af;font-size:0.78rem;font-weight:600;text-decoration:none;margin-right:12px;">📧 {email}</a>')
+        links_parts.append(f'<a href="mailto:{email}" class="detail-link">{email}</a>')
     if phone:
-        links_parts.append(f'<span style="color:#1e40af;font-size:0.78rem;font-weight:600;margin-right:12px;">📞 {phone}</span>')
+        links_parts.append(f'<span class="detail-link">{phone}</span>')
     if linkedin:
-        links_parts.append(f'<a href="{linkedin}" target="_blank" style="color:#1e40af;font-size:0.78rem;font-weight:600;text-decoration:none;margin-right:12px;">💼 LinkedIn</a>')
-    for field, icon, label in [("twitter_url","🐦","X"),("facebook_url","📘","FB"),
-                                ("instagram_url","📸","IG"),("youtube_url","▶️","YT"),
-                                ("whatsapp_url","💬","WA")]:
+        links_parts.append(f'<a href="{linkedin}" target="_blank" class="detail-link">LinkedIn</a>')
+    for field, label in [("twitter_url","X"),("facebook_url","Facebook"),
+                         ("instagram_url","Instagram"),("youtube_url","YouTube"),
+                         ("whatsapp_url","WhatsApp")]:
         v = _safe(str(row.get(field,"")))
         if v:
-            links_parts.append(f'<a href="{v}" target="_blank" style="color:#1e40af;font-size:0.78rem;font-weight:600;text-decoration:none;margin-right:12px;">{icon} {label}</a>')
-    for plat, icon in [("linkedin","💼"),("twitter","🐦"),("facebook","📘"),("instagram","📸"),("youtube","▶️")]:
+            links_parts.append(f'<a href="{v}" target="_blank" class="detail-link">{label}</a>')
+    for plat, label in [("linkedin","LinkedIn"),("twitter","X"),("facebook","Facebook"),
+                        ("instagram","Instagram"),("youtube","YouTube")]:
         v = _safe(str(social_r.get(plat,"")))
         if v and not _safe(str(row.get(plat+"_url",""))):
-            links_parts.append(f'<a href="{v}" target="_blank" style="color:#1e40af;font-size:0.78rem;font-weight:600;text-decoration:none;margin-right:12px;">{icon}</a>')
+            links_parts.append(f'<a href="{v}" target="_blank" class="detail-link">{label}</a>')
     links_html = "".join(links_parts)
 
-    # ── Section helper ──
     def section(title: str, content: str) -> str:
-        return (f'<div style="font-size:0.67rem;font-weight:700;color:#94a3b8;text-transform:uppercase;'
-                f'letter-spacing:.08em;margin:16px 0 5px;border-top:1px solid #f1f5f9;padding-top:10px;">{title}</div>'
-                f'<div style="font-size:0.82rem;color:#334155;line-height:1.65;">{content}</div>')
+        return (f'<div class="detail-section">{title}</div>'
+                f'<div class="detail-body">{content}</div>')
 
-    # ── Build complete HTML ──
     html_parts = []
     html_parts.append(f"""
-    <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;
-                padding:22px 22px 18px;box-shadow:0 2px 12px rgba(0,0,0,.05);">
-
+    <div class="detail-card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;
                   gap:10px;flex-wrap:wrap;margin-bottom:6px;">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:1.1rem;font-weight:800;color:#1e293b;margin:0 0 2px;">{company}</div>
-          <div style="font-size:0.78rem;color:#64748b;">
+          <div class="detail-title">{company}</div>
+          <div class="detail-sub">
             {"📍 "+loc+"  ·  " if loc else ""}{(channel+" "+_channel_emoji(channel)) if channel else ""}
           </div>
         </div>
         <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
           {imp_badge}
-          <span style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;
-                       padding:3px 10px;border-radius:6px;font-size:0.78rem;font-weight:700;">{score:.2f}</span>
-          {"<span style='padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:600;background:#fdf4ff;color:#7e22ce;'>📂 Dir</span>" if is_dir else ""}
+          <span class="score-badge">{score:.2f}</span>
+          {"<span class='status-pill' style='background:#fdf4ff;color:#7e22ce;border:1px solid #e9d5ff'>Directory</span>" if is_dir else ""}
         </div>
       </div>
     """)
 
     if tags_html:
-        html_parts.append(f'<div style="display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 0;">{tags_html}</div>')
-
+        html_parts.append(f'<div class="card-tags" style="margin:6px 0 0">{tags_html}</div>')
     if summary:
         html_parts.append(section("About", summary))
-
     if usp:
-        html_parts.append(section("Unique Selling Point", f"<em>💡 {usp}</em>"))
-
+        html_parts.append(section("Unique Selling Point", f"<em>{usp}</em>"))
     if prod_str:
-        html_parts.append(section("Products &amp; Services", f"📦 {prod_str}"))
-
+        html_parts.append(section("Products & Services", prod_str))
     if contact:
-        conf_badge = (f' <span style="color:#059669;font-size:0.7rem;">({c_conf} confidence)</span>'
-                      if c_conf not in ("","low") else "")
-        contact_html = f'👤 <strong>{contact}</strong>'
-        if c_title:
-            contact_html += f'  —  {c_title}'
+        conf_badge = (f' ({c_conf} confidence)' if c_conf not in ("","low") else "")
+        contact_html = f'<strong>{contact}</strong>'
+        if c_title: contact_html += f'  —  {c_title}'
         contact_html += conf_badge
         if c_email and "@" in c_email and c_email != email:
-            contact_html += f'<br>📧 {c_email}'
+            contact_html += f'<br>{c_email}'
         html_parts.append(section("Key Contact", contact_html))
 
     html_parts.append(section("Compliance", gap_html))
-
     if certs:
         html_parts.append(section("Certifications", " · ".join(certs[:8])))
-
     if exports:
         html_parts.append(section("Export Markets", " · ".join(exports[:6])))
-
     if key_cust:
         html_parts.append(section("Key Customers", " · ".join(key_cust[:4])))
-
     if signals:
         html_parts.append(section("Intelligence Signals", "  ".join(signals)))
-
     if news:
         news_html = "<br>".join(
-            f'<a href="{n.get("url","#")}" target="_blank" '
-            f'style="color:#1e40af;font-weight:600;text-decoration:none;">'
-            f'📰 {str(n.get("title",""))[:70]}</a>'
-            for n in news[:3] if n.get("title")
-        )
+            f'<a href="{n.get("url","#")}" target="_blank" class="detail-link">{str(n.get("title",""))[:70]}</a>'
+            for n in news[:3] if n.get("title"))
         if news_html:
             html_parts.append(section("Recent News", news_html))
-
     if not is_valid and rejection:
         html_parts.append(
-            f'<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;'
-            f'padding:8px 12px;font-size:0.78rem;color:#b91c1c;margin-top:12px;">⚠️ AI note: {rejection}</div>')
-
+            f'<div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:7px;'
+            f'padding:8px 12px;font-size:0.77rem;color:#be123c;margin-top:12px;">AI note: {rejection}</div>')
     if links_html:
         html_parts.append(
-            f'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:16px;'
-            f'padding-top:12px;border-top:1px solid #f1f5f9;">{links_html}</div>')
+            f'<div class="detail-links" style="margin-top:14px;padding-top:12px;border-top:1px solid #f3f4f6">{links_html}</div>')
 
-    html_parts.append("</div>")  # close main card div
-
-    # ── Emit entire card in ONE call ──
+    html_parts.append("</div>")
     st.markdown("".join(html_parts), unsafe_allow_html=True)
 
-    # ── Directory section — uses st widgets so rendered after HTML ──
+    # Directory section
     if is_dir:
         st.markdown(
-            f'<div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:10px;'
-            f'padding:10px 14px;margin-top:10px;font-size:0.82rem;color:#7e22ce;">'
-            f'📂 <strong>Directory page</strong> — lists ~{dir_count} companies inside</div>',
+            f'<div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;'
+            f'padding:10px 14px;margin-top:8px;font-size:0.82rem;color:#7e22ce;">'
+            f'Directory page — lists ~{dir_count} companies inside</div>',
             unsafe_allow_html=True)
 
         if dir_cos:
             st.markdown(f"**{len(dir_cos)} companies extracted:**")
-            # Build all dir items as one HTML block
             dir_html_parts = []
             for c in dir_cos[:30]:
                 c_name = _safe(str(c.get("company",""))) or "—"
@@ -2446,15 +1881,14 @@ def _render_detail_panel(cid: str):
                 c_prod = _safe(str(c.get("products","")))[:60]
                 lnk = ""
                 if c_web:
-                    lnk += f' <a href="{c_web}" target="_blank" style="color:#1e40af;font-size:0.75rem;font-weight:600;">🌐</a>'
+                    lnk += f' <a href="{c_web}" target="_blank" class="detail-link">Web</a>'
                 if c_em and "@" in c_em:
-                    lnk += f' <a href="mailto:{c_em}" style="color:#1e40af;font-size:0.75rem;font-weight:600;">📧</a>'
+                    lnk += f' <a href="mailto:{c_em}" class="detail-link">Email</a>'
                 loc_str = f"  ·  📍{c_city}" if c_city else ""
-                prod_str_c = f'<br><span style="color:#64748b;">{c_prod}</span>' if c_prod else ""
+                prod_str_c = f'<br><span style="color:#6b7280;">{c_prod}</span>' if c_prod else ""
                 dir_html_parts.append(
-                    f'<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;'
-                    f'padding:7px 11px;margin-bottom:4px;font-size:0.78rem;color:#334155;">'
-                    f'<strong style="color:#1e293b;">{c_name}</strong>{loc_str}{lnk}{prod_str_c}</div>'
+                    f'<div class="detail-dir-item">'
+                    f'<strong>{c_name}</strong>{loc_str}{lnk}{prod_str_c}</div>'
                 )
             st.markdown("".join(dir_html_parts), unsafe_allow_html=True)
             if len(dir_cos) > 30:
@@ -2464,12 +1898,12 @@ def _render_detail_panel(cid: str):
                 "Phone":c.get("phone",""), "Email":c.get("email",""),
                 "Website":c.get("website",""), "Products":c.get("products",""),
             } for c in dir_cos])
-            st.download_button("⬇️ Download all as CSV",
+            st.download_button("Download all as CSV",
                                data=df_dir.to_csv(index=False).encode("utf-8"),
                                file_name=f"dir_{cid[:8]}.csv", mime="text/csv",
                                key=f"dl_det_dir_{cid}")
         else:
-            if st.button("⚡ Extract all companies from directory",
+            if st.button("Extract all companies from directory",
                          key=f"det_extract_{cid}", type="primary",
                          use_container_width=True):
                 with st.spinner("Extracting with AI… 30–60 seconds"):
@@ -2484,7 +1918,7 @@ def _render_detail_panel(cid: str):
                             updated = dict(st.session_state.card_details.get(cid, row))
                             updated["directory_companies"] = cos
                             st.session_state.card_details[cid] = updated
-                            st.success(f"✅ Extracted {len(cos)} companies!")
+                            st.success(f"Extracted {len(cos)} companies!")
                             st.rerun()
                         else:
                             st.error(f"Extraction failed: {r.text}")
@@ -2493,7 +1927,7 @@ def _render_detail_panel(cid: str):
 
 
 # ===========================================================================
-# _show_results — true master-detail: left list + right detail panel
+# _show_results — master-detail layout
 # ===========================================================================
 def _show_results(leads: list, key_suffix: str = "tab"):
     if not leads:
@@ -2510,7 +1944,6 @@ def _show_results(leads: list, key_suffix: str = "tab"):
     count_txt = (f"{len(filtered)} of {len(leads)} companies"
                  if len(filtered) != len(leads) else f"{len(leads)} companies")
 
-    # Header
     hc1, hc2 = st.columns([4, 1])
     with hc1:
         st.caption(f"Showing **{count_txt}** · Click **Open →** to view details")
@@ -2524,7 +1957,6 @@ def _show_results(leads: list, key_suffix: str = "tab"):
         _show_table(filtered, key_suffix=key_suffix)
         return
 
-    # Master-detail split
     selected_cid = st.session_state.get("selected_card")
     show_detail  = (
         selected_cid is not None
@@ -2541,7 +1973,6 @@ def _show_results(leads: list, key_suffix: str = "tab"):
     else:
         _render_card_list(filtered, key_suffix=key_suffix)
 
-    # CSV export
     if filtered:
         df_exp = pd.DataFrame(filtered)
         for c in ["compliance_gaps","products","certifications","export_markets","key_customers"]:
@@ -2549,7 +1980,7 @@ def _show_results(leads: list, key_suffix: str = "tab"):
                 df_exp[c] = df_exp[c].apply(
                     lambda v: ", ".join(str(x) for x in v) if isinstance(v, list) else str(v or ""))
         st.download_button(
-            "⬇️ Export as CSV",
+            "Export as CSV",
             data=df_exp.to_csv(index=False).encode("utf-8"),
             file_name=f"leads_{key_suffix}.csv", mime="text/csv",
             key=f"dl_exp_{key_suffix}_{len(filtered)}"
@@ -2557,7 +1988,7 @@ def _show_results(leads: list, key_suffix: str = "tab"):
 
 
 # ===========================================================================
-# RESULTS SECTION  (unchanged structure)
+# RESULTS SECTION
 # ===========================================================================
 if company_leads:
     st.markdown("---")
@@ -2565,13 +1996,13 @@ if company_leads:
     st.markdown("<br>", unsafe_allow_html=True)
 
     tab_all, tab_high, tab_gaps, tab_mfg, tab_imp, tab_trade, tab_dir = st.tabs([
-        f"🌐 All ({len(company_leads)})",
-        "⭐ High Priority",
-        "⚠️ Compliance Issues",
-        "🏭 Manufacturers",
-        "📦 Importers",
-        "🤝 Traders & Distributors",
-        "📂 Directories",
+        f"All ({len(company_leads)})",
+        "High Priority",
+        "Compliance Issues",
+        "Manufacturers",
+        "Importers",
+        "Traders & Distributors",
+        "Directories",
     ])
 
     with tab_all:
@@ -2585,7 +2016,7 @@ if company_leads:
     with tab_gaps:
         st.markdown("""
         <div class="info-box">
-          ⚠️ These companies have <strong>missing licences or registrations</strong>
+          These companies have <strong>missing licences or registrations</strong>
           (BIS, GST, IEC, MCA). They may need compliance services — great sales prospects.
         </div>
         """, unsafe_allow_html=True)
@@ -2610,22 +2041,22 @@ if company_leads:
         _show_results(trade_leads, "trade")
 
     with tab_dir:
-        st.markdown("#### 📂 Directory Pages Detected")
+        st.markdown("#### Directories")
         st.caption(
-            "When AI detects a page that **lists multiple companies** (a directory), "
-            "it appears here. Expand any directory card to extract all companies inline."
+            "When AI detects a page that lists multiple companies, it appears here. "
+            "Expand any directory card to extract all companies inline."
         )
 
         dir_leads = [x for x in company_leads if x.get("is_directory")]
 
-        with st.expander("📥 Manually scan any directory URL", expanded=False):
+        with st.expander("Manually scan a directory URL", expanded=False):
             manual_url   = st.text_input("Paste a directory URL",
                                           placeholder="https://www.indiamart.com/proddetail/...",
                                           key="manual_dir_url")
             manual_query = st.text_input("What kind of companies are listed here?",
                                           placeholder="electronics importers india",
                                           key="manual_dir_query")
-            if st.button("🔍 Scan this URL", key="manual_dir_btn", type="primary"):
+            if st.button("Scan this URL", key="manual_dir_btn", type="primary"):
                 if manual_url:
                     with st.spinner("Scanning directory…"):
                         try:
@@ -2647,7 +2078,7 @@ if company_leads:
                 found     = res.get("extracted", 0)
                 saved_n   = res.get("saved", 0)
                 companies = res.get("companies", [])
-                st.success(f"✅ Found **{found}** companies, saved **{saved_n}** as leads")
+                st.success(f"Found **{found}** companies, saved **{saved_n}** as leads")
                 if companies:
                     _show_extracted_companies(companies,
                         key_suffix="manual",
@@ -2655,31 +2086,26 @@ if company_leads:
 
         if not dir_leads:
             st.markdown("""
-            <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;
-                 padding:16px 20px;font-size:0.85rem;color:#78350f">
-              <strong>💡 No directories detected yet.</strong><br>
-              Try searching for terms like:<br>
-              <code>electronics importers list india</code> &nbsp;·&nbsp;
-              <code>manufacturers directory Gujarat</code> &nbsp;·&nbsp;
-              <code>pharma distributors Mumbai directory</code><br><br>
-              Or paste any directory URL in the manual scanner above.
+            <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;
+                 padding:14px 18px;font-size:0.83rem;color:#92400e">
+              No directories detected yet. Try searching for terms like
+              <em>electronics importers list india</em> or <em>manufacturers directory Gujarat</em>.
+              Or paste any directory URL in the scanner above.
             </div>
             """, unsafe_allow_html=True)
         else:
-            st.markdown(f"**{len(dir_leads)} director{'y' if len(dir_leads)==1 else 'ies'} found — expand to extract companies**")
-            _show_results(dir_leads, "dir")   # ← uses collapsed cells, expand reveals extract
+            st.markdown(f"**{len(dir_leads)} director{'y' if len(dir_leads)==1 else 'ies'} found**")
+            _show_results(dir_leads, "dir")
 
-    # LinkedIn profiles  (unchanged)
     linkedin_leads = [x for x in raw_leads if x.get("source") == "linkedin_semantic"]
     if linkedin_leads:
-        with st.expander(f"👤 LinkedIn Contacts Found ({len(linkedin_leads)})"):
+        with st.expander(f"LinkedIn Contacts ({len(linkedin_leads)})"):
             ld   = pd.DataFrame(linkedin_leads)
             cols = ["name","profile","snippet","searched_query","created_at"]
             st.dataframe(ld[[c for c in cols if c in ld.columns]], use_container_width=True)
 
-    # Compliance checker  (unchanged)
     st.markdown("---")
-    with st.expander("🔬 Check Licences & Registrations (BIS, GST, IEC, MCA)", expanded=False):
+    with st.expander("Check Licences & Registrations (BIS, GST, IEC, MCA)", expanded=False):
         st.markdown("""
         Automatically check which companies are missing important Indian business registrations.
         Companies with missing licences are highlighted — these are high-value prospects.
@@ -2687,14 +2113,14 @@ if company_leads:
         n        = st.slider("How many companies to check?", 5, 100, 20, key="enrich_n")
         cf_enrich = "" if st.session_state.sf_country == "Any Country" \
                     else st.session_state.sf_country.lower()
-        if st.button("▶️ Start Checking", key="enrich_btn", type="primary"):
+        if st.button("Start Checking", key="enrich_btn", type="primary"):
             with st.spinner("Checking registrations… this takes 1-2 minutes"):
                 try:
                     r = _api_post("/leads/enrich-compliance",
                         params={"limit": n, "country_filter": cf_enrich},
                         timeout=300)
                     if r.status_code == 200:
-                        st.success(f"✅ Checked {r.json().get('checked',0)} companies. Refresh to see results.")
+                        st.success(f"Checked {r.json().get('checked',0)} companies. Refresh to see results.")
                     else:
                         st.error("Check failed.")
                 except Exception as e:
@@ -2702,7 +2128,7 @@ if company_leads:
 
 elif not st.session_state.active_job_id:
     st.markdown("""
-    <div class="empty-state" style="margin-top:40px">
+    <div class="empty-state" style="margin-top:48px">
       <div class="icon">🌐</div>
       <h3>Ready to find leads</h3>
       <p>Type what kind of business you're looking for in the search bar above.<br>
