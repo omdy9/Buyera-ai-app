@@ -835,6 +835,24 @@ if not st.session_state.auth_token:
     _show_login_page()
     st.stop()
 
+if "show_assistant" not in st.session_state:
+    st.session_state["show_assistant"] = False
+
+if st.session_state["show_assistant"]:
+    st.markdown(
+        '<div class="page-header">'
+        '<div class="ph-brand">Bue<em>ra</em> · AI Assistant</div>'
+        '<div class="ph-actions">'
+        f'<div class="ph-user">@{st.session_state.auth_username}</div>'
+        '</div></div>',
+        unsafe_allow_html=True)
+    if st.button("← Back to search", key="back_to_search_btn"):
+        st.session_state["show_assistant"] = False
+        st.rerun()
+    from assistant import render_assistant_page
+    render_assistant_page()
+    st.stop()
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -968,7 +986,11 @@ with st.sidebar:
         for _k in ["auth_token","auth_user_id","auth_username","auth_role"]:
             st.session_state[_k] = ""
         st.rerun()
-
+    st.markdown('<div class="sb-section">Tools</div>', unsafe_allow_html=True)
+    if st.button("🤖 AI Assistant", key="sb_assistant_btn", use_container_width=True):
+        st.session_state["show_assistant"] = True
+        st.rerun()
+        
     st.markdown('<div class="sb-section">Filters</div>', unsafe_allow_html=True)
 
     _ctr_idx = ALL_COUNTRIES.index(st.session_state.sf_country) \
