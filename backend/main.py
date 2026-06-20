@@ -117,6 +117,118 @@ def ensure_indexes():
         logger.warning("Keep-alive failed to start: %s", e)
 
 
+
+class AssistantTurn(BaseModel):
+    question: str = ""
+    answer:   str = ""
+    field:    str = ""
+ 
+class AssistantAskRequest(BaseModel):
+    history: list[AssistantTurn] = []
+ 
+ 
+@app.post("/assistant/ask")
+def assistant_ask(body: AssistantAskRequest,
+                  user: dict = Depends(get_current_user)):
+    """
+    Stateless — frontend sends the full conversation history each time,
+    backend returns either the next question or a "ready" signal with
+    the completed brief.
+    """
+    history = [t.dict() for t in body.history]
+    result  = generate_next_question(history)
+    return result
+ 
+ 
+# ---------------------------------------------------------------------------
+# AI Assistant — verified-only research job
+# ---------------------------------------------------------------------------
+ 
+class AssistantResearchRequest(BaseModel):
+    brief: dict
+ 
+ 
+def _run_assistant_job(job_id: str, brief: dict, user_id: str) -> None:
+    _upsert_job(job_id, status="running", started_at=datetime.utcnow())
+ 
+    def _progress(stage: str, detail: dict):
+        _upsert_job(job_id, stage=stage, stage_detail=detail)
+ 
+    try:
+        result = run_verified_research(brief, progress_cb=_progress, run_compliance=True)
+ 
+        # Persist verified leads the same way normal search results are saved,
+        # tagged so they're distinguishable in the UI/DB.
+        docs = []
+        for c in result["verified_leads"]:
+            doc = _build_lead_doc(c, result["query_used"], brief.get("location", ""),
+                                  user_id, search_job_id=job_id)
+            doc["source"] = "ai_assistant_verified"
+            doc["email_verification"] = c.get("email_verification", {})
+            doc["phone_verification"] = c.get("phone_verification", {})
+            docs.append(doc)
+        if docs:
+            leads_collection.insert_many(docs)
+            for d in docs:
+                _append_job_result(job_id, d)
+ 
+        _upsert_job(
+            job_id, status="completed", finished_at=datetime.utcnow(),
+            verified_count=result["verified_count"],
+            rejected_count=result["rejected_count"],
+            total_candidates=result["total_candidates"],
+            saved_total=len(docs),
+        )
+        logger.info("Assistant job %s (user=%s) done: %d/%d verified",
+                   job_id, user_id, result["verified_count"], result["total_candidates"])
+    except Exception as exc:
+        logger.exception("Assistant job %s failed: %s", job_id, exc)
+        _upsert_job(job_id, status="failed", finished_at=datetime.utcnow(), error=str(exc))
+ 
+ 
+@app.post("/assistant/research")
+def assistant_research(body: AssistantResearchRequest,
+                       user: dict = Depends(get_current_user)):
+    missing = [f for f in ["industry_or_service", "location", "channel_type"]
+               if not str(body.brief.get(f, "")).strip()]
+    if missing:
+        raise HTTPException(status_code=400,
+                           detail=f"Brief is missing required fields: {missing}")
+ 
+    user_id = user["user_id"]
+    _evict_old_jobs()
+ 
+    job_id = uuid.uuid4().hex
+    job = {
+        "job_id": job_id, "query": body.brief.get("industry_or_service", ""),
+        "status": "queued", "user_id": user_id, "brief": body.brief,
+        "created_at": datetime.utcnow(), "started_at": None, "finished_at": None,
+        "verified_count": 0, "rejected_count": 0, "total_candidates": 0,
+        "saved_total": 0, "stage": "queued", "stage_detail": {},
+        "error": "", "results": [],
+    }
+    with SEARCH_JOBS_LOCK:
+        SEARCH_JOBS[job_id] = job
+ 
+    worker = threading.Thread(
+        target=_run_assistant_job, args=(job_id, body.brief, user_id), daemon=True)
+    worker.start()
+ 
+    return {"job_id": job_id, "status": "started", "brief": body.brief}
+ 
+ 
+@app.get("/assistant/status/{job_id}")
+def assistant_status(job_id: str, user: dict = Depends(get_current_user)):
+    with SEARCH_JOBS_LOCK:
+        job = SEARCH_JOBS.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="job not found")
+        if job.get("user_id") != user["user_id"] and user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="access denied")
+        payload = {k: v for k, v in job.items() if k != "results"}
+        payload["results_count"] = len(job["results"])
+    return payload
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
