@@ -51,9 +51,20 @@ html, body, .stApp {
     line-height: 1.55;
 }
 
-/* ── Hide Streamlit chrome ── */
+/* ── Hide Streamlit chrome ──
+   IMPORTANT: do NOT hide the whole <header> — the sidebar's
+   expand/collapse arrow lives inside it. Hiding header entirely
+   makes the sidebar unrecoverable once collapsed (no way to
+   reopen it). Only hide the specific decorative bits instead. */
 #MainMenu, footer, [data-testid="stToolbar"],
-[data-testid="stDecoration"], header { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+
+/* Keep header present (so the sidebar toggle still works) but
+   make it visually blend in instead of showing Streamlit's bar */
+header[data-testid="stHeader"] {
+    background: transparent !important;
+    height: auto !important;
+}
 
 /* ─────────────────────────────────────────
    SIDEBAR
