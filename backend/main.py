@@ -19,7 +19,11 @@ try:
 except ImportError:
     from .keep_alive import start_keep_alive
     from .job_store  import save_job, load_job, load_recent_jobs
-
+try:
+      from .ai_assistant import generate_next_question, run_verified_research
+  except ImportError:
+      from ai_assistant import generate_next_question, run_verified_research
+      
 if __package__:
     from .database import leads_collection, search_state_collection
     from .nlp import extract_fields, score_match, semantic_similarity
