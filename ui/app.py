@@ -101,18 +101,31 @@ html, body, .stApp {
 [data-testid="stSidebar"] div[data-baseweb="select"] span,
 [data-testid="stSidebar"] [class*="singleValue"] { color: #E2E8F0 !important; }
 
-/* Dropdown menus (global) */
+/* Dropdown menus — white by default (main content) */
 ul[role="listbox"], [data-baseweb="popover"] > div, [data-baseweb="menu"] > div {
-    background: #1E293B !important;
-    border: 1px solid #334155 !important;
+    background: #fff !important;
+    border: 1px solid #E2E8F0 !important;
     border-radius: 8px !important;
-    box-shadow: 0 12px 32px rgba(0,0,0,0.4) !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.10) !important;
 }
-[role="option"] { background: #1E293B !important; color: #CBD5E1 !important; }
+[role="option"] { background: #fff !important; color: #0F172A !important; }
 [role="option"]:hover, [aria-selected="true"][role="option"] {
-    background: #2563EB !important; color: #fff !important;
+    background: #EFF6FF !important; color: #2563EB !important;
 }
 [role="option"] * { color: inherit !important; }
+/* Sidebar dropdowns stay dark */
+[data-testid="stSidebar"] ul[role="listbox"],
+[data-testid="stSidebar"] [data-baseweb="popover"] > div,
+[data-testid="stSidebar"] [data-baseweb="menu"] > div {
+    background: #1E293B !important;
+    border-color: #334155 !important;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.4) !important;
+}
+[data-testid="stSidebar"] [role="option"] { background: #1E293B !important; color: #CBD5E1 !important; }
+[data-testid="stSidebar"] [role="option"]:hover,
+[data-testid="stSidebar"] [aria-selected="true"][role="option"] {
+    background: #2563EB !important; color: #fff !important;
+}
 
 /* Sidebar brand block */
 .sb-brand {
@@ -272,7 +285,17 @@ ul[role="listbox"], [data-baseweb="popover"] > div, [data-baseweb="menu"] > div 
     cursor: default;
 }
 
-/* ── Buttons ── */
+/* ── Animations ── */
+@keyframes slideInRight {
+    from { opacity: 0; transform: translateX(18px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* ── Buttons — base (main content) ── */
 .stButton > button {
     font-family: 'Inter', sans-serif !important;
     font-size: 0.82rem !important;
@@ -289,6 +312,27 @@ ul[role="listbox"], [data-baseweb="popover"] > div, [data-baseweb="menu"] > div 
     color: #2563EB !important;
     background: #EFF6FF !important;
 }
+/* Streamlit native primary button — works for st.button(type="primary")
+   and st.form_submit_button(type="primary") */
+[data-testid="baseButton-primary"],
+[data-testid="baseButton-primaryFormSubmit"],
+button[kind="primary"],
+button[kind="primaryFormSubmit"] {
+    background: #2563EB !important;
+    color: #fff !important;
+    border: 1.5px solid #2563EB !important;
+    box-shadow: 0 1px 6px rgba(37,99,235,0.28) !important;
+    font-weight: 600 !important;
+}
+[data-testid="baseButton-primary"]:hover,
+[data-testid="baseButton-primaryFormSubmit"]:hover,
+button[kind="primary"]:hover,
+button[kind="primaryFormSubmit"]:hover {
+    background: #1D4ED8 !important;
+    border-color: #1D4ED8 !important;
+    color: #fff !important;
+}
+/* Legacy markdown-wrapper fallback (kept for compatibility) */
 .btn-primary .stButton > button {
     background: #2563EB !important;
     color: #fff !important;
@@ -406,8 +450,9 @@ div[data-baseweb="select"] input {
     align-items: center;
     gap: 12px;
     cursor: pointer;
-    transition: border-color 0.12s, box-shadow 0.12s;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
     position: relative;
+    animation: fadeIn 0.18s ease both;
 }
 .lead-card:hover {
     border-color: #93C5FD;
@@ -416,7 +461,7 @@ div[data-baseweb="select"] input {
 .lead-card.active {
     border-color: #2563EB;
     background: #F0F7FF;
-    box-shadow: 0 2px 14px rgba(37,99,235,0.12);
+    box-shadow: 0 2px 14px rgba(37,99,235,0.13);
 }
 /* Score ring — the signature element */
 .score-ring {
@@ -484,6 +529,7 @@ div[data-baseweb="select"] input {
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: #E2E8F0 transparent;
+    animation: slideInRight 0.22s cubic-bezier(0.22,1,0.36,1) both;
 }
 .detail-panel::-webkit-scrollbar { width: 3px; }
 .detail-panel::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 3px; }
@@ -499,11 +545,14 @@ div[data-baseweb="select"] input {
 .dp-empty-text { font-size: 0.8rem; color: #94A3B8; line-height: 1.6; }
 
 .dp-company-name {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     font-weight: 700;
     color: #0F172A;
-    letter-spacing: -0.03em;
-    margin-bottom: 2px;
+    letter-spacing: -0.02em;
+    margin-bottom: 3px;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
 }
 .dp-location {
     font-size: 0.76rem;
@@ -696,9 +745,7 @@ def _show_login_page():
             with st.form("lf"):
                 uname = st.text_input("Username", placeholder="your-username")
                 pwd   = st.text_input("Password", type="password", placeholder="••••••••")
-                st.markdown('<div class="btn-primary">', unsafe_allow_html=True)
-                sub   = st.form_submit_button("Sign in →", use_container_width=True)
-                st.markdown('</div>', unsafe_allow_html=True)
+                sub   = st.form_submit_button("Sign in →", use_container_width=True, type="primary")
             if sub:
                 if not uname or not pwd:
                     st.error("Enter your username and password.")
@@ -727,9 +774,7 @@ def _show_login_page():
                 ne  = st.text_input("Email (optional)", placeholder="you@company.com")
                 np  = st.text_input("Password", type="password", placeholder="min. 6 characters")
                 np2 = st.text_input("Confirm password", type="password", placeholder="repeat password")
-                st.markdown('<div class="btn-primary">', unsafe_allow_html=True)
-                sub2 = st.form_submit_button("Create account →", use_container_width=True)
-                st.markdown('</div>', unsafe_allow_html=True)
+                sub2 = st.form_submit_button("Create account →", use_container_width=True, type="primary")
             if sub2:
                 if not nu or not np:
                     st.error("Username and password are required.")
@@ -1053,9 +1098,8 @@ with sc1:
     st.session_state.sf_query = query
 
 with sc2:
-    st.markdown('<div class="btn-primary">', unsafe_allow_html=True)
-    search_clicked = st.button("Search", use_container_width=True, key="main_search_btn")
-    st.markdown('</div>', unsafe_allow_html=True)
+    search_clicked = st.button("Search", use_container_width=True,
+                               key="main_search_btn", type="primary")
 
 with sc3:
     refresh_clicked = st.button("↺ Refresh", use_container_width=True, key="refresh_btn")
@@ -1499,16 +1543,14 @@ def _render_detail_panel(cid: str):
 
     parts = [f"""
     <div class="detail-panel">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <div style="flex:1;min-width:0">
-          <div class="dp-company-name">{company}</div>
-          <div class="dp-location">{"📍 "+loc+"  ·  " if loc else ""}{channel if channel else ""}</div>
-        </div>
-        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:flex-end;gap:5px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
           {ib}
           <span class="badge" style="background:#EFF6FF;color:#2563EB;border:1px solid #BFDBFE;font-weight:700">{score:.2f}</span>
           {"<span class='badge b-dir'>📂 Directory</span>" if is_dir else ""}
         </div>
+        <div class="dp-company-name">{company}</div>
+        <div class="dp-location">{"📍 "+loc+"  ·  " if loc else ""}{channel if channel else ""}</div>
       </div>
     """]
 
@@ -1589,9 +1631,9 @@ def _render_detail_panel(cid: str):
                                file_name=f"dir_{cid[:8]}.csv", mime="text/csv",
                                key=f"dl_det_dir_{cid}")
         else:
-            st.markdown('<div class="btn-primary">', unsafe_allow_html=True)
             if st.button("Extract all companies from this directory",
-                         key=f"det_extract_{cid}", use_container_width=True):
+                         key=f"det_extract_{cid}", use_container_width=True,
+                         type="primary"):
                 with st.spinner("Extracting with AI…"):
                     try:
                         r = _api_post("/leads/extract-directory",
@@ -1610,7 +1652,6 @@ def _render_detail_panel(cid: str):
                             st.error(f"Extraction failed: {r.text}")
                     except Exception as e:
                         st.error(str(e))
-            st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # Table view
@@ -1889,8 +1930,8 @@ if company_leads:
             manual_query = st.text_input("What kind of companies are listed?",
                                          placeholder="electronics importers india",
                                          key="manual_dir_query")
-            st.markdown('<div class="btn-primary">', unsafe_allow_html=True)
-            if st.button("Scan directory", key="manual_dir_btn", use_container_width=True):
+            if st.button("Scan directory", key="manual_dir_btn",
+                         use_container_width=True, type="primary"):
                 if manual_url:
                     with st.spinner("Scanning…"):
                         try:
@@ -1904,7 +1945,6 @@ if company_leads:
                                 st.error(f"Scan failed: {r.text}")
                         except Exception as e:
                             st.error(f"Cannot reach server: {e}")
-            st.markdown('</div>', unsafe_allow_html=True)
 
             if st.session_state.get("manual_dir_result"):
                 res = st.session_state["manual_dir_result"]
@@ -1940,8 +1980,8 @@ if company_leads:
         n_check  = st.slider("How many companies to check?", 5, 100, 20, key="enrich_n")
         cf_enrich = "" if st.session_state.sf_country == "Any Country" \
                     else st.session_state.sf_country.lower()
-        st.markdown('<div class="btn-primary">', unsafe_allow_html=True)
-        if st.button("Start checking", key="enrich_btn", use_container_width=True):
+        if st.button("Start checking", key="enrich_btn",
+                     use_container_width=True, type="primary"):
             with st.spinner("Checking registrations… this may take 1–2 minutes"):
                 try:
                     r = _api_post("/leads/enrich-compliance",
@@ -1955,7 +1995,6 @@ if company_leads:
                         st.error("Check failed.")
                 except Exception as e:
                     st.error(str(e))
-        st.markdown('</div>', unsafe_allow_html=True)
 
 elif not st.session_state.active_job_id:
     st.markdown("""
