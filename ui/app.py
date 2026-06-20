@@ -60,10 +60,13 @@ html, body, .stApp {
 [data-testid="stDecoration"] { display: none !important; }
 
 /* Keep header present (so the sidebar toggle still works) but
-   make it visually blend in instead of showing Streamlit's bar */
+   make it visually blend in instead of showing Streamlit's bar.
+   IMPORTANT: do NOT set height:auto here — Streamlit positions its
+   sidebar collapse/expand toggle button using the header's natural
+   fixed height. Collapsing that height breaks the toggle's position
+   and can leave the sidebar stuck at 0 width with no way to reopen it. */
 header[data-testid="stHeader"] {
     background: transparent !important;
-    height: auto !important;
 }
 
 /* ─────────────────────────────────────────
@@ -72,6 +75,16 @@ header[data-testid="stHeader"] {
 [data-testid="stSidebar"] {
     background: #0F172A !important;
     border-right: none !important;
+    min-width: 21rem !important;
+    width: 21rem !important;
+}
+/* Belt-and-suspenders: Streamlit sometimes applies a collapsed
+   transform/width via an aria-expanded state on the parent section.
+   Force it back open regardless of that state. */
+section[data-testid="stSidebar"][aria-expanded="false"] {
+    min-width: 21rem !important;
+    width: 21rem !important;
+    transform: none !important;
 }
 [data-testid="stSidebar"] > div:first-child {
     padding: 0 !important;
