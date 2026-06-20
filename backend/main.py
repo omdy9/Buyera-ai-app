@@ -19,11 +19,13 @@ try:
 except ImportError:
     from .keep_alive import start_keep_alive
     from .job_store  import save_job, load_job, load_recent_jobs
+
+# AI Assistant module
 try:
-      from .ai_assistant import generate_next_question, run_verified_research
-  except ImportError:
-      from ai_assistant import generate_next_question, run_verified_research
-      
+    from ai_assistant import generate_next_question, run_verified_research
+except ImportError:
+    from .ai_assistant import generate_next_question, run_verified_research
+
 if __package__:
     from .database import leads_collection, search_state_collection
     from .nlp import extract_fields, score_match, semantic_similarity
@@ -116,118 +118,6 @@ def ensure_indexes():
     except Exception as e:
         logger.warning("Keep-alive failed to start: %s", e)
 
-
-
-class AssistantTurn(BaseModel):
-    question: str = ""
-    answer:   str = ""
-    field:    str = ""
- 
-class AssistantAskRequest(BaseModel):
-    history: list[AssistantTurn] = []
- 
- 
-@app.post("/assistant/ask")
-def assistant_ask(body: AssistantAskRequest,
-                  user: dict = Depends(get_current_user)):
-    """
-    Stateless — frontend sends the full conversation history each time,
-    backend returns either the next question or a "ready" signal with
-    the completed brief.
-    """
-    history = [t.dict() for t in body.history]
-    result  = generate_next_question(history)
-    return result
- 
- 
-# ---------------------------------------------------------------------------
-# AI Assistant — verified-only research job
-# ---------------------------------------------------------------------------
- 
-class AssistantResearchRequest(BaseModel):
-    brief: dict
- 
- 
-def _run_assistant_job(job_id: str, brief: dict, user_id: str) -> None:
-    _upsert_job(job_id, status="running", started_at=datetime.utcnow())
- 
-    def _progress(stage: str, detail: dict):
-        _upsert_job(job_id, stage=stage, stage_detail=detail)
- 
-    try:
-        result = run_verified_research(brief, progress_cb=_progress, run_compliance=True)
- 
-        # Persist verified leads the same way normal search results are saved,
-        # tagged so they're distinguishable in the UI/DB.
-        docs = []
-        for c in result["verified_leads"]:
-            doc = _build_lead_doc(c, result["query_used"], brief.get("location", ""),
-                                  user_id, search_job_id=job_id)
-            doc["source"] = "ai_assistant_verified"
-            doc["email_verification"] = c.get("email_verification", {})
-            doc["phone_verification"] = c.get("phone_verification", {})
-            docs.append(doc)
-        if docs:
-            leads_collection.insert_many(docs)
-            for d in docs:
-                _append_job_result(job_id, d)
- 
-        _upsert_job(
-            job_id, status="completed", finished_at=datetime.utcnow(),
-            verified_count=result["verified_count"],
-            rejected_count=result["rejected_count"],
-            total_candidates=result["total_candidates"],
-            saved_total=len(docs),
-        )
-        logger.info("Assistant job %s (user=%s) done: %d/%d verified",
-                   job_id, user_id, result["verified_count"], result["total_candidates"])
-    except Exception as exc:
-        logger.exception("Assistant job %s failed: %s", job_id, exc)
-        _upsert_job(job_id, status="failed", finished_at=datetime.utcnow(), error=str(exc))
- 
- 
-@app.post("/assistant/research")
-def assistant_research(body: AssistantResearchRequest,
-                       user: dict = Depends(get_current_user)):
-    missing = [f for f in ["industry_or_service", "location", "channel_type"]
-               if not str(body.brief.get(f, "")).strip()]
-    if missing:
-        raise HTTPException(status_code=400,
-                           detail=f"Brief is missing required fields: {missing}")
- 
-    user_id = user["user_id"]
-    _evict_old_jobs()
- 
-    job_id = uuid.uuid4().hex
-    job = {
-        "job_id": job_id, "query": body.brief.get("industry_or_service", ""),
-        "status": "queued", "user_id": user_id, "brief": body.brief,
-        "created_at": datetime.utcnow(), "started_at": None, "finished_at": None,
-        "verified_count": 0, "rejected_count": 0, "total_candidates": 0,
-        "saved_total": 0, "stage": "queued", "stage_detail": {},
-        "error": "", "results": [],
-    }
-    with SEARCH_JOBS_LOCK:
-        SEARCH_JOBS[job_id] = job
- 
-    worker = threading.Thread(
-        target=_run_assistant_job, args=(job_id, body.brief, user_id), daemon=True)
-    worker.start()
- 
-    return {"job_id": job_id, "status": "started", "brief": body.brief}
- 
- 
-@app.get("/assistant/status/{job_id}")
-def assistant_status(job_id: str, user: dict = Depends(get_current_user)):
-    with SEARCH_JOBS_LOCK:
-        job = SEARCH_JOBS.get(job_id)
-        if not job:
-            raise HTTPException(status_code=404, detail="job not found")
-        if job.get("user_id") != user["user_id"] and user.get("role") != "admin":
-            raise HTTPException(status_code=403, detail="access denied")
-        payload = {k: v for k, v in job.items() if k != "results"}
-        payload["results_count"] = len(job["results"])
-    return payload
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -593,13 +483,13 @@ def health_check():
     """Full system health — diagnose SERP + LLM + MongoDB + Node crawler."""
     import os
     results = {}
- 
+
     serp_key = os.getenv("SERP_API_KEY", "")
     results["serp_api"] = {
         "key_set":     bool(serp_key.strip()),
         "key_preview": (serp_key[:6] + "...") if serp_key else "NOT SET",
     }
- 
+
     try:
         try:
             from .llm import get_all_providers, _PROVIDER_DEAD
@@ -609,14 +499,14 @@ def health_check():
         results["llm_dead_this_session"]   = dict(_PROVIDER_DEAD)
     except Exception as e:
         results["llm_providers"] = {"error": str(e)}
- 
+
     try:
         from database import db
         db.command("ping")
         results["mongodb"] = {"status": "connected"}
     except Exception as e:
         results["mongodb"] = {"status": "error", "detail": str(e)}
- 
+
     try:
         import requests as _r
         r = _r.get(
@@ -626,10 +516,10 @@ def health_check():
         results["node_crawler"] = {"status": "ok" if r.status_code == 200 else f"HTTP {r.status_code}"}
     except Exception as e:
         results["node_crawler"] = {"status": "unreachable", "detail": str(e)}
- 
+
     return results
- 
- 
+
+
 @app.get("/admin/test-llm")
 def test_llm():
     """Quick test — which LLM providers are actually responding right now."""
@@ -638,10 +528,10 @@ def test_llm():
             from .llm import _call_llm, _get_provider, get_all_providers
         except ImportError:
             from llm import _call_llm, _get_provider, get_all_providers
- 
+
         providers_status = get_all_providers()
         working, failed = [], []
- 
+
         for name in ["deepseek", "grok", "openrouter"]:
             pname, cfg = _get_provider(name)
             if not pname:
@@ -655,10 +545,12 @@ def test_llm():
                 working.append({"provider": name, "response": result[:60]})
             except Exception as e:
                 failed.append({"provider": name, "error": str(e)})
- 
+
         return {"working": working, "failed": failed, "providers": providers_status}
     except Exception as e:
         return {"error": str(e)}
+
+
 # ---------------------------------------------------------------------------
 # Admin fix endpoint — visit once to clean up old indexes/docs, then remove
 # ---------------------------------------------------------------------------
@@ -804,6 +696,122 @@ def search_more_like_this(job_id: str, result_index: int, limit: int = 5,
     scored.sort(key=lambda x: x.get("more_like_this_score", 0), reverse=True)
     return {"job_id": job_id, "seed_result_index": int(result_index),
             "results": scored[: max(1, min(int(limit), 20))]}
+
+
+# ---------------------------------------------------------------------------
+# AI Assistant — adaptive question flow
+# ---------------------------------------------------------------------------
+
+class AssistantTurn(BaseModel):
+    question: str = ""
+    answer:   str = ""
+    field:    str = ""
+
+class AssistantAskRequest(BaseModel):
+    history: list[AssistantTurn] = []
+
+
+@app.post("/assistant/ask")
+def assistant_ask(body: AssistantAskRequest,
+                  user: dict = Depends(get_current_user)):
+    """
+    Stateless — frontend sends the full conversation history each time,
+    backend returns either the next question or a "ready" signal with
+    the completed brief.
+    """
+    history = [t.dict() for t in body.history]
+    result  = generate_next_question(history)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# AI Assistant — verified-only research job
+# ---------------------------------------------------------------------------
+
+class AssistantResearchRequest(BaseModel):
+    brief: dict
+
+
+def _run_assistant_job(job_id: str, brief: dict, user_id: str) -> None:
+    _upsert_job(job_id, status="running", started_at=datetime.utcnow())
+
+    def _progress(stage: str, detail: dict):
+        _upsert_job(job_id, stage=stage, stage_detail=detail)
+
+    try:
+        result = run_verified_research(brief, progress_cb=_progress, run_compliance=True)
+
+        # Persist verified leads the same way normal search results are saved,
+        # tagged so they're distinguishable in the UI/DB.
+        docs = []
+        for c in result["verified_leads"]:
+            doc = _build_lead_doc(c, result["query_used"], brief.get("location", ""),
+                                  user_id, search_job_id=job_id)
+            doc["source"] = "ai_assistant_verified"
+            doc["email_verification"] = c.get("email_verification", {})
+            doc["phone_verification"] = c.get("phone_verification", {})
+            docs.append(doc)
+        if docs:
+            leads_collection.insert_many(docs)
+            for d in docs:
+                _append_job_result(job_id, d)
+
+        _upsert_job(
+            job_id, status="completed", finished_at=datetime.utcnow(),
+            verified_count=result["verified_count"],
+            rejected_count=result["rejected_count"],
+            total_candidates=result["total_candidates"],
+            saved_total=len(docs),
+        )
+        logger.info("Assistant job %s (user=%s) done: %d/%d verified",
+                   job_id, user_id, result["verified_count"], result["total_candidates"])
+    except Exception as exc:
+        logger.exception("Assistant job %s failed: %s", job_id, exc)
+        _upsert_job(job_id, status="failed", finished_at=datetime.utcnow(), error=str(exc))
+
+
+@app.post("/assistant/research")
+def assistant_research(body: AssistantResearchRequest,
+                       user: dict = Depends(get_current_user)):
+    missing = [f for f in ["industry_or_service", "location", "channel_type"]
+               if not str(body.brief.get(f, "")).strip()]
+    if missing:
+        raise HTTPException(status_code=400,
+                           detail=f"Brief is missing required fields: {missing}")
+
+    user_id = user["user_id"]
+    _evict_old_jobs()
+
+    job_id = uuid.uuid4().hex
+    job = {
+        "job_id": job_id, "query": body.brief.get("industry_or_service", ""),
+        "status": "queued", "user_id": user_id, "brief": body.brief,
+        "created_at": datetime.utcnow(), "started_at": None, "finished_at": None,
+        "verified_count": 0, "rejected_count": 0, "total_candidates": 0,
+        "saved_total": 0, "stage": "queued", "stage_detail": {},
+        "error": "", "results": [],
+    }
+    with SEARCH_JOBS_LOCK:
+        SEARCH_JOBS[job_id] = job
+
+    worker = threading.Thread(
+        target=_run_assistant_job, args=(job_id, body.brief, user_id), daemon=True)
+    worker.start()
+
+    return {"job_id": job_id, "status": "started", "brief": body.brief}
+
+
+@app.get("/assistant/status/{job_id}")
+def assistant_status(job_id: str, user: dict = Depends(get_current_user)):
+    with SEARCH_JOBS_LOCK:
+        job = SEARCH_JOBS.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="job not found")
+        if job.get("user_id") != user["user_id"] and user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="access denied")
+        payload = {k: v for k, v in job.items() if k != "results"}
+        payload["results_count"] = len(job["results"])
+    return payload
 
 
 # ---------------------------------------------------------------------------
