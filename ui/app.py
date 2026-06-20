@@ -849,7 +849,17 @@ if st.session_state["show_assistant"]:
     if st.button("← Back to search", key="back_to_search_btn"):
         st.session_state["show_assistant"] = False
         st.rerun()
-    from assistant import render_assistant_page
+
+    # FIX: defensive import — same try/except relative-then-absolute pattern
+    # used everywhere else in this codebase (backend/main.py, etc). The old
+    # bare "from assistant import render_assistant_page" had no fallback and
+    # could raise ModuleNotFoundError depending on how Streamlit resolves
+    # sys.path for the entry-point script, silently breaking this whole page.
+    try:
+        from assistant import render_assistant_page
+    except ImportError:
+        from ui.assistant import render_assistant_page
+
     render_assistant_page()
     st.stop()
 
