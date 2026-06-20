@@ -273,6 +273,7 @@ ul[role="listbox"], [data-baseweb="popover"] > div, [data-baseweb="menu"] > div 
     flex-wrap: wrap;
     gap: 6px;
     margin-top: 12px;
+    margin-bottom: 18px;
 }
 .chip {
     font-size: 0.72rem;
@@ -283,6 +284,26 @@ ul[role="listbox"], [data-baseweb="popover"] > div, [data-baseweb="menu"] > div 
     padding: 4px 11px;
     border-radius: 20px;
     cursor: default;
+}
+
+/* Always-visible pre-search filter row */
+.presearch-label {
+    font-size: 0.66rem;
+    font-weight: 700;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.presearch-row {
+    background: #fff;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 14px 16px 4px;
+    margin-bottom: 18px;
 }
 
 /* ── Animations ── */
@@ -936,12 +957,12 @@ if st.session_state.get("_reset_filters"):
 # Sidebar
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown(f"""
-    <div class="sb-brand">
-        <div class="sb-logo">Bue<em>ra</em></div>
-        <div class="sb-user-pill">@{st.session_state.auth_username}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        '<div class="sb-brand">'
+        '<div class="sb-logo">Bue<em>ra</em></div>'
+        f'<div class="sb-user-pill">@{st.session_state.auth_username}</div>'
+        '</div>',
+        unsafe_allow_html=True)
 
     if st.button("Sign out", key="sb_logout_btn", use_container_width=True):
         for _k in ["auth_token","auth_user_id","auth_username","auth_role"]:
@@ -1043,14 +1064,14 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 # Page header
 # ---------------------------------------------------------------------------
-st.markdown(f"""
-<div class="page-header">
-  <div class="ph-brand">Bue<em>ra</em></div>
-  <div class="ph-actions">
-    <div class="ph-user">@{st.session_state.auth_username}</div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    '<div class="page-header">'
+    '<div class="ph-brand">Bue<em>ra</em></div>'
+    '<div class="ph-actions">'
+    f'<div class="ph-user">@{st.session_state.auth_username}</div>'
+    '</div>'
+    '</div>',
+    unsafe_allow_html=True)
 
 # Logout button (positioned alongside header via columns trick)
 _hc1, _hc2 = st.columns([10, 1])
@@ -1109,6 +1130,49 @@ with sc3:
 # Suggestion chips
 chips_html = "".join(f'<span class="chip">{c}</span>' for c in SUGGESTION_CHIPS)
 st.markdown(f'<div class="chips-row">{chips_html}</div>', unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
+# Always-visible filter row — usable BEFORE running any search
+# (mirrors the sidebar filters; writes into the same canonical session keys
+#  so sidebar / this row / post-search expander all stay in sync)
+# ---------------------------------------------------------------------------
+st.markdown('<div class="presearch-row">', unsafe_allow_html=True)
+st.markdown('<div class="presearch-label">🎛️ Filter before you search</div>',
+            unsafe_allow_html=True)
+
+pf1, pf2, pf3, pf4 = st.columns(4)
+
+with pf1:
+    _ctr_opts = ALL_COUNTRIES
+    _ctr_idx  = _ctr_opts.index(st.session_state.sf_country) \
+                if st.session_state.sf_country in _ctr_opts else 0
+    _ps_country = st.selectbox("Country", _ctr_opts, index=_ctr_idx, key="ps_country_sel")
+    st.session_state.sf_country = _ps_country
+
+with pf2:
+    _ind_opts = ["Any"] + ALL_INDUSTRIES
+    _ind_idx  = _ind_opts.index(st.session_state.sf_industry) \
+                if st.session_state.sf_industry in _ind_opts else 0
+    _ps_industry = st.selectbox("Industry", _ind_opts, index=_ind_idx, key="ps_industry_sel")
+    st.session_state.sf_industry = _ps_industry
+
+with pf3:
+    _ch_opts = ["Any"] + CHANNEL_TYPES
+    _ch_idx  = _ch_opts.index(st.session_state.sf_channel) \
+               if st.session_state.sf_channel in _ch_opts else 0
+    _ps_channel = st.selectbox("Business type", _ch_opts, index=_ch_idx, key="ps_channel_sel")
+    st.session_state.sf_channel = _ps_channel
+
+with pf4:
+    _qt_labels = ["All","Basic","Good","Best"]
+    _qt_map    = {"All":0,"Basic":1,"Good":2,"Best":3}
+    _qt_rev    = {0:"All",1:"Basic",2:"Good",3:"Best"}
+    _qt_cur    = _qt_rev.get(st.session_state.quality_threshold, "All")
+    _ps_quality = st.selectbox("Result quality", _qt_labels,
+                               index=_qt_labels.index(_qt_cur), key="ps_quality_sel")
+    st.session_state.quality_threshold = _qt_map[_ps_quality]
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # Build and trigger search
@@ -1193,12 +1257,13 @@ if st.session_state.active_job_id:
         pages = status.get("pages_scanned", 0)
 
         if sv in ("running","queued"):
-            st.markdown(f"""
-            <div class="banner-info">
-              <span>⏳</span>
-              <span>Searching — <strong>{saved}</strong> companies found so far
-              · {pages} pages scanned · auto-refreshing every {POLL_SECONDS}s</span>
-            </div>""", unsafe_allow_html=True)
+            st.markdown(
+                '<div class="banner-info">'
+                '<span>⏳</span>'
+                f'<span>Searching — <strong>{saved}</strong> companies found so far'
+                f' · {pages} pages scanned · auto-refreshing every {POLL_SECONDS}s</span>'
+                '</div>',
+                unsafe_allow_html=True)
             st.progress(min(saved / 50, 1.0))
             time.sleep(POLL_SECONDS)
             st.rerun()
@@ -1412,16 +1477,17 @@ def _render_card_list(leads: list, key_suffix: str = ""):
 
         active_cls = " active" if is_sel else ""
 
-        st.markdown(f"""
-        <div class="lead-card{active_cls}">
-          <div class="score-ring {ring_cls}">{score:.2f}</div>
-          <div class="lc-body">
-            <div class="lc-name">{company}{"  📂" if is_dir else ""}</div>
-            <div class="lc-meta">{meta_str}</div>
-          </div>
-          <div class="lc-badges">{ib}{gb}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        dir_icon = "  📂" if is_dir else ""
+        st.markdown(
+            f'<div class="lead-card{active_cls}">'
+            f'<div class="score-ring {ring_cls}">{score:.2f}</div>'
+            '<div class="lc-body">'
+            f'<div class="lc-name">{company}{dir_icon}</div>'
+            f'<div class="lc-meta">{meta_str}</div>'
+            '</div>'
+            f'<div class="lc-badges">{ib}{gb}</div>'
+            '</div>',
+            unsafe_allow_html=True)
 
         btn_label = "Close" if is_sel else "View →"
         if st.button(btn_label, key=f"sel_{key_suffix}_{cid}_{idx}",
@@ -1541,18 +1607,23 @@ def _render_detail_panel(cid: str):
 
     prod_str = " · ".join(products[:8])
 
-    parts = [f"""
-    <div class="detail-panel">
-      <div style="margin-bottom:12px">
-        <div style="display:flex;justify-content:flex-end;gap:5px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-          {ib}
-          <span class="badge" style="background:#EFF6FF;color:#2563EB;border:1px solid #BFDBFE;font-weight:700">{score:.2f}</span>
-          {"<span class='badge b-dir'>📂 Directory</span>" if is_dir else ""}
-        </div>
-        <div class="dp-company-name">{company}</div>
-        <div class="dp-location">{"📍 "+loc+"  ·  " if loc else ""}{channel if channel else ""}</div>
-      </div>
-    """]
+    dir_badge_html = "<span class='badge b-dir'>📂 Directory</span>" if is_dir else ""
+    loc_prefix = ("📍 " + loc + "  ·  ") if loc else ""
+
+    header_html = (
+        '<div class="detail-panel">'
+        '<div style="margin-bottom:12px">'
+        '<div style="display:flex;justify-content:flex-end;gap:5px;align-items:center;flex-wrap:wrap;margin-bottom:8px">'
+        f'{ib}'
+        f'<span class="badge" style="background:#EFF6FF;color:#2563EB;border:1px solid #BFDBFE;font-weight:700">{score:.2f}</span>'
+        f'{dir_badge_html}'
+        '</div>'
+        f'<div class="dp-company-name">{company}</div>'
+        f'<div class="dp-location">{loc_prefix}{channel}</div>'
+        '</div>'
+    )
+
+    parts = [header_html]
 
     if tags_html:
         parts.append(f'<div class="dp-tags">{tags_html}</div>')
