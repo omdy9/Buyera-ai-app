@@ -1897,41 +1897,61 @@ if company_leads or st.session_state.active_job_id:
             sel_country = st.selectbox("Country", ALL_COUNTRIES,
                 index=ALL_COUNTRIES.index(st.session_state.sf_country)
                       if st.session_state.sf_country in ALL_COUNTRIES else 0,
-                key="sf_country")
+                key="exp_country_sel")
+            st.session_state.sf_country = sel_country
             state_opts = (["Any"] + COUNTRY_STATES.get(sel_country,[])
                           if sel_country != "Any Country" else ["Any"])
             if st.session_state.sf_state not in state_opts:
                 st.session_state.sf_state = "Any"
-            st.selectbox("State / Region", state_opts,
+            sel_state = st.selectbox("State / Region", state_opts,
                 index=state_opts.index(st.session_state.sf_state)
                       if st.session_state.sf_state in state_opts else 0,
-                key="sf_state", disabled=(sel_country=="Any Country"))
+                key="exp_state_sel", disabled=(sel_country=="Any Country"))
+            st.session_state.sf_state = sel_state
         with f2:
-            st.selectbox("Industry", ["Any"]+ALL_INDUSTRIES,
+            sel_industry = st.selectbox("Industry", ["Any"]+ALL_INDUSTRIES,
                 index=(["Any"]+ALL_INDUSTRIES).index(st.session_state.sf_industry)
                       if st.session_state.sf_industry in ["Any"]+ALL_INDUSTRIES else 0,
-                key="sf_industry")
-            st.selectbox("Business type", ["Any"]+CHANNEL_TYPES,
+                key="exp_industry_sel")
+            st.session_state.sf_industry = sel_industry
+            sel_channel = st.selectbox("Business type", ["Any"]+CHANNEL_TYPES,
                 index=(["Any"]+CHANNEL_TYPES).index(st.session_state.sf_channel)
                       if st.session_state.sf_channel in ["Any"]+CHANNEL_TYPES else 0,
-                key="sf_channel")
+                key="exp_channel_sel")
+            st.session_state.sf_channel = sel_channel
         with f3:
-            st.selectbox("Priority", ["Any","High ⭐","Medium","Low"],
-                index=0, key="sf_importance")
-            st.slider("Min score", 0.0, 1.0,
-                st.session_state.sf_min_score, 0.05, key="sf_min_score")
+            _imp_opts2 = ["Any","High ⭐","Medium","Low"]
+            sel_importance = st.selectbox("Priority", _imp_opts2,
+                index=_imp_opts2.index(st.session_state.sf_importance)
+                      if st.session_state.sf_importance in _imp_opts2 else 0,
+                key="exp_importance_sel")
+            st.session_state.sf_importance = sel_importance
+            sel_min_score = st.slider("Min score", 0.0, 1.0,
+                st.session_state.sf_min_score, 0.05, key="exp_min_score_sl")
+            st.session_state.sf_min_score = sel_min_score
         with f4:
-            st.selectbox("Sort by",
-                ["Best Match First","Priority (High → Low)",
-                 "Company Name A → Z","Company Name Z → A","Newest First"],
-                key="sf_sort")
-            st.checkbox("Has email", key="sf_has_email")
-            st.checkbox("Has phone", key="sf_has_phone")
-            st.checkbox("Compliance issues only", key="sf_gaps_only")
+            _sort_opts2 = ["Best Match First","Priority (High → Low)",
+                           "Company Name A → Z","Company Name Z → A","Newest First"]
+            sel_sort = st.selectbox("Sort by", _sort_opts2,
+                index=_sort_opts2.index(st.session_state.sf_sort)
+                      if st.session_state.sf_sort in _sort_opts2 else 0,
+                key="exp_sort_sel")
+            st.session_state.sf_sort = sel_sort
+            sel_email = st.checkbox("Has email",
+                value=st.session_state.sf_has_email, key="exp_has_email_cb")
+            st.session_state.sf_has_email = sel_email
+            sel_phone = st.checkbox("Has phone",
+                value=st.session_state.sf_has_phone, key="exp_has_phone_cb")
+            st.session_state.sf_has_phone = sel_phone
+            sel_gaps = st.checkbox("Compliance issues only",
+                value=st.session_state.sf_gaps_only, key="exp_gaps_only_cb")
+            st.session_state.sf_gaps_only = sel_gaps
 
         ca, cb, cc = st.columns(3)
         with ca:
-            st.checkbox("Scan all pages (slower)", key="scan_all")
+            sel_scan_all = st.checkbox("Scan all pages (slower)",
+                value=st.session_state.scan_all, key="exp_scan_all_cb")
+            st.session_state.scan_all = sel_scan_all
         with cb:
             if st.button("Clear filters", use_container_width=True, key="exp_clear"):
                 st.session_state["_reset_filters"] = True
