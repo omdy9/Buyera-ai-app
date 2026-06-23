@@ -67,51 +67,25 @@ html, body, .stApp {
    and can leave the sidebar stuck at 0 width with no way to reopen it. */
 header[data-testid="stHeader"] {
     background: transparent !important;
+    z-index: 998 !important;
 }
 
 /* ─────────────────────────────────────────
    SIDEBAR
+   NOTE: open/closed state is driven by our OWN toggle in Python
+   (st.session_state.sidebar_open), not Streamlit's native collapse
+   arrow — that control's markup/testid changes across Streamlit
+   versions and is unsafe to target with CSS alone. See the toggle
+   block right before `with st.sidebar:` below.
 ───────────────────────────────────────── */
 [data-testid="stSidebar"] {
     background: #0F172A !important;
     border-right: none !important;
-    min-width: 21rem !important;
-    width: 21rem !important;
 }
 [data-testid="stSidebar"] > div:first-child {
     padding: 0 !important;
 }
-
-/* Reopen control — shown when the sidebar is collapsed. Covers both
-   the old and new Streamlit testids since this changes across versions.
-   Forced visible, forced on top of every other fixed/sticky element
-   (including our custom .page-header), and styled so the icon is
-   actually visible against the light page background. */
-[data-testid="collapsedControl"],
-[data-testid="stSidebarCollapsedControl"] {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    z-index: 999999 !important;
-    position: fixed !important;
-    top: 0.6rem !important;
-    left: 0.6rem !important;
-}
-[data-testid="collapsedControl"] svg,
-[data-testid="stSidebarCollapsedControl"] svg {
-    color: #0F172A !important;
-    fill: #0F172A !important;
-}
-
-/* Keep Streamlit's real header (which hosts the sidebar toggle)
-   above our custom sticky .page-header bar at all times, so the
-   toggle is never covered or unclickable while scrolled. */
-header[data-testid="stHeader"] {
-    background: transparent !important;
-    z-index: 999998 !important;
-}
-/* Sidebar text universally light */
-[data-testid="stSidebar"] *:not(button) {
+/* Sidebar text universally light */[data-testid="stSidebar"] *:not(button) {
     color: #CBD5E1 !important;
 }
 [data-testid="stSidebar"] label,
@@ -1023,6 +997,57 @@ if st.session_state.get("_reset_filters"):
         "sf_sort":"Best Match First","sf_query":"",
     }.items():
         st.session_state[_k] = _v
+    st.rerun()
+
+# ---------------------------------------------------------------------------
+# Sidebar open/closed state — our own toggle, not Streamlit's native one.
+# Streamlit's built-in collapse arrow has unstable markup across
+# versions, so we hide/show the sidebar with plain CSS driven by a
+# session flag, controlled by a normal st.button. Because it's a real
+# widget rendered in the main script flow (not Streamlit's internal
+# chrome), it can never get hidden or vanish after a rerun — it always
+# redraws on every pass, in the same fixed spot.
+# ---------------------------------------------------------------------------
+if "sidebar_open" not in st.session_state:
+    st.session_state.sidebar_open = True
+
+st.markdown(f"""
+<style>
+[data-testid="stSidebar"] {{
+    display: {"flex" if st.session_state.sidebar_open else "none"} !important;
+    flex-direction: column !important;
+    min-width: 21rem !important;
+    width: 21rem !important;
+}}
+div[data-testid="stButton"]:has(button[key="sidebar_toggle_btn"]) {{
+    position: fixed !important;
+    top: 12px !important;
+    left: 12px !important;
+    z-index: 999999 !important;
+    width: 38px !important;
+}}
+div[data-testid="stButton"]:has(button[key="sidebar_toggle_btn"]) button {{
+    width: 38px !important;
+    height: 38px !important;
+    padding: 0 !important;
+    border-radius: 8px !important;
+    background: #0F172A !important;
+    color: #fff !important;
+    border: 1px solid #1E293B !important;
+    font-size: 1.05rem !important;
+    line-height: 1 !important;
+}}
+div[data-testid="stButton"]:has(button[key="sidebar_toggle_btn"]) button:hover {{
+    background: #1E293B !important;
+    color: #60A5FA !important;
+    border-color: #3B82F6 !important;
+}}
+</style>
+""", unsafe_allow_html=True)
+
+if st.button("✕" if st.session_state.sidebar_open else "☰",
+             key="sidebar_toggle_btn"):
+    st.session_state.sidebar_open = not st.session_state.sidebar_open
     st.rerun()
 
 # ---------------------------------------------------------------------------
