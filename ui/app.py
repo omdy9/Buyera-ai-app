@@ -78,18 +78,38 @@ header[data-testid="stHeader"] {
     min-width: 21rem !important;
     width: 21rem !important;
 }
-/* Belt-and-suspenders: Streamlit sometimes applies a collapsed
-   transform/width via an aria-expanded state on the parent section.
-   Force it back open regardless of that state. */
-section[data-testid="stSidebar"][aria-expanded="false"] {
-    min-width: 21rem !important;
-    width: 21rem !important;
-    transform: none !important;
-}
 [data-testid="stSidebar"] > div:first-child {
     padding: 0 !important;
 }
 
+/* Reopen control — shown when the sidebar is collapsed. Covers both
+   the old and new Streamlit testids since this changes across versions.
+   Forced visible, forced on top of every other fixed/sticky element
+   (including our custom .page-header), and styled so the icon is
+   actually visible against the light page background. */
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapsedControl"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 999999 !important;
+    position: fixed !important;
+    top: 0.6rem !important;
+    left: 0.6rem !important;
+}
+[data-testid="collapsedControl"] svg,
+[data-testid="stSidebarCollapsedControl"] svg {
+    color: #0F172A !important;
+    fill: #0F172A !important;
+}
+
+/* Keep Streamlit's real header (which hosts the sidebar toggle)
+   above our custom sticky .page-header bar at all times, so the
+   toggle is never covered or unclickable while scrolled. */
+header[data-testid="stHeader"] {
+    background: transparent !important;
+    z-index: 999998 !important;
+}
 /* Sidebar text universally light */
 [data-testid="stSidebar"] *:not(button) {
     color: #CBD5E1 !important;
