@@ -45,7 +45,7 @@ st.markdown("""
 
 html, body, .stApp {
     font-family: 'Inter', system-ui, sans-serif;
-    font-size: 20px;
+    font-size: 17px;
     background: #F1F5F9;
     color: #0F172A;
     line-height: 1.55;
