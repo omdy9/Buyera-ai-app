@@ -788,7 +788,7 @@ def _show_login_page():
         st.markdown("""
         <div style="text-align:center;padding:52px 0 32px">
             <div style="font-size:2rem;font-weight:700;color:#0F172A;letter-spacing:-0.05em;margin-bottom:6px">
-                Bue<em style="color:#2563EB;font-style:normal">ra</em>
+                Buye<em style="color:#2563EB;font-style:normal">ra</em>
             </div>
             <p style="color:#64748B;font-size:0.85rem;margin:0;font-weight:400">
                 AI-powered B2B lead discovery
@@ -877,7 +877,7 @@ if "show_assistant" not in st.session_state:
 if st.session_state["show_assistant"]:
     st.markdown(
         '<div class="page-header">'
-        '<div class="ph-brand">Bue<em>ra</em> · AI Assistant</div>'
+        '<div class="ph-brand">Buye<em>ra</em> · AI Assistant</div>'
         '<div class="ph-actions">'
         f'<div class="ph-user">@{st.session_state.auth_username}</div>'
         '</div></div>',
@@ -1023,7 +1023,7 @@ if st.session_state.get("_reset_filters"):
 with st.sidebar:
     st.markdown(
         '<div class="sb-brand">'
-        '<div class="sb-logo">Bue<em>ra</em></div>'
+        '<div class="sb-logo">Buye<em>ra</em></div>'
         f'<div class="sb-user-pill">@{st.session_state.auth_username}</div>'
         '</div>',
         unsafe_allow_html=True)
@@ -1134,7 +1134,7 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 st.markdown(
     '<div class="page-header">'
-    '<div class="ph-brand">Bue<em>ra</em></div>'
+    '<div class="ph-brand">Buye<em>ra</em></div>'
     '<div class="ph-actions">'
     f'<div class="ph-user">@{st.session_state.auth_username}</div>'
     '</div>'
