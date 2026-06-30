@@ -72,57 +72,89 @@ header[data-testid="stHeader"] {
 }
 
 /* ─────────────────────────────────────────
-   SIDEBAR — responsive
-   Desktop: fixed width, native collapse arrow restored (we're no longer
-   fighting aria-expanded/transforms, so it's safe to let Streamlit drive
-   open/close state itself instead of locking it open).
-   Tablet/mobile: narrower sidebar, and below 768px Streamlit's own
-   overlay/collapse behavior takes over (we just stop forcing min-width).
+
+   SIDEBAR
+
+   NOTE: collapsing is intentionally disabled. Every attempt to make
+
+   it collapsible (fighting aria-expanded, then a custom display
+
+   toggle) ran into Streamlit internals that vary by version and left
+
+   the panel hidden/empty with no reliable way back. Locking it open
+
+   removes the failure mode entirely — there is nothing to "reopen"
+
+   because it can never close.
+
 ───────────────────────────────────────── */
+
 [data-testid="stSidebar"] {
+
     display: flex !important;
+
     flex-direction: column !important;
+
     background: #0F172A !important;
+
     border-right: none !important;
+
+    min-width: 21rem !important;
+
     width: 21rem !important;
+
+    visibility: visible !important;
+
+    transform: none !important;
+
 }
+
 [data-testid="stSidebar"] > div:first-child {
+
     padding: 0 !important;
+
 }
 
-/* Native collapse arrow — restored, just restyled to match the dark sidebar
-   instead of being hidden outright. */
+/* Hide Streamlit's native collapse arrow so it can't be triggered
+
+   accidentally and put the sidebar back into a broken state. */
+
 [data-testid="collapsedControl"],
+
 [data-testid="stSidebarCollapsedControl"] {
-    display: flex !important;
-}
-[data-testid="collapsedControl"] svg,
-[data-testid="stSidebarCollapsedControl"] svg {
-    fill: #CBD5E1 !important;
+
+    display: none !important;
+
 }
 
-/* Tablet: shrink the sidebar instead of letting it eat half the screen */
-@media (max-width: 1100px) {
-    [data-testid="stSidebar"] {
-        width: 16rem !important;
-        min-width: 16rem !important;
-    }
+/* Sidebar text universally light */
+
+/* Sidebar text universally light */
+
+[data-testid="stSidebar"] *:not(button) {
+
+    color: #CBD5E1 !important;
+
 }
 
-/* Mobile: let Streamlit's own responsive/overlay sidebar behavior work —
-   don't pin a width at all, and shrink padding so the collapsed state
-   doesn't leave dead space. */
-@media (max-width: 640px) {
-    [data-testid="stSidebar"] {
-        width: 100% !important;
-        min-width: 0 !important;
-    }
-    .block-container {
-        padding: 0 1rem 1rem !important;
-    }
+[data-testid="stSidebar"] label,
+
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
+
+    font-size: 0.68rem !important;
+
+    font-weight: 600 !important;
+
+    letter-spacing: 0.07em !important;
+
+    text-transform: uppercase !important;
+
+    color: #64748B !important;
+
 }
 
 /* Sidebar inputs */
+
 [data-testid="stSidebar"] .stTextInput input,
 [data-testid="stSidebar"] .stSelectbox > div > div,
 [data-testid="stSidebar"] [data-baseweb="select"] > div {
